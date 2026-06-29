@@ -5,9 +5,9 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 //Enrich Specific Components
-import { CSVUploader } from "./fire-enrich/csv-uploader";
-import { UnifiedEnrichmentView } from "./fire-enrich/unified-enrichment-view";
-import { EnrichmentTable } from "./fire-enrich/enrichment-table";
+import { CSVUploader } from "./super-enrich/csv-uploader";
+import { UnifiedEnrichmentView } from "./super-enrich/unified-enrichment-view";
+import { EnrichmentTable } from "./super-enrich/enrichment-table";
 import { CSVRow, EnrichmentField } from "@/lib/types";
 
 // Import shared components
@@ -234,12 +234,12 @@ export default function HomePage() {
               <div className="flex gap-8">
                 <a
                   className="contents"
-                  href="https://github.com/firecrawl/fire-enrich"
+                  href="https://github.com/sumitIsLearning/super-enrich-AI"
                   target="_blank"
                 >
                   <ButtonUI variant="tertiary">
                     <GithubIcon />
-                    Use this Template
+                    View on GitHub
                   </ButtonUI>
                 </a>
               </div>
@@ -253,12 +253,12 @@ export default function HomePage() {
                 <div className="flex gap-8">
                   <a
                     className="contents"
-                    href="https://github.com/firecrawl/fire-enrich"
+                    href="https://github.com/sumitIsLearning/super-enrich-AI"
                     target="_blank"
                   >
                     <ButtonUI variant="tertiary">
                       <GithubIcon />
-                      Use this Template
+                      View on GitHub
                     </ButtonUI>
                   </a>
                 </div>

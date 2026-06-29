@@ -9,7 +9,7 @@ export async function loadSkipList(): Promise<Set<string>> {
   }
 
   try {
-    const skipListPath = path.join(process.cwd(), 'app', 'fire-enrich', 'skip-list.txt');
+    const skipListPath = path.join(process.cwd(), 'app', 'super-enrich', 'skip-list.txt');
     const content = await fs.readFile(skipListPath, 'utf-8');
     
     const skipDomains = new Set<string>();

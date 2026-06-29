@@ -7,7 +7,7 @@ import { CSVRow } from "@/lib/types";
 import { Upload, Download, AtSign, InfinityIcon } from "lucide-react";
 import Button from "@/components/shared/button/button";
 import Link from "next/link";
-import { FIRE_ENRICH_CONFIG } from "./config";
+import { SUPER_ENRICH_CONFIG } from "./config";
 
 interface CSVUploaderProps {
   onUpload: (rows: CSVRow[], columns: string[]) => void;

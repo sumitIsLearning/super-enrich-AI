@@ -1,10 +1,10 @@
 // Check if running in unlimited mode (when cloned/self-hosted)
 const isUnlimitedMode =
-  process.env.FIRE_ENRICH_UNLIMITED === "true" ||
+  process.env.SUPER_ENRICH_UNLIMITED === "true" ||
   process.env.NODE_ENV === "development";
 
-// Configuration for Fire Enrich
-export const FIRE_ENRICH_CONFIG = {
+// Configuration for Super Enrich
+export const SUPER_ENRICH_CONFIG = {
   // CSV upload limits
   CSV_LIMITS: {
     MAX_ROWS: isUnlimitedMode ? Infinity : 15,
@@ -31,8 +31,8 @@ export const FIRE_ENRICH_CONFIG = {
 
 // Error messages
 export const ERROR_MESSAGES = {
-  TOO_MANY_ROWS: `CSV file contains too many rows. Maximum allowed: ${FIRE_ENRICH_CONFIG.CSV_LIMITS.MAX_ROWS} rows`,
-  TOO_MANY_COLUMNS: `CSV file contains too many columns. Maximum allowed: ${FIRE_ENRICH_CONFIG.CSV_LIMITS.MAX_COLUMNS} columns`,
+  TOO_MANY_ROWS: `CSV file contains too many rows. Maximum allowed: ${SUPER_ENRICH_CONFIG.CSV_LIMITS.MAX_ROWS} rows`,
+  TOO_MANY_COLUMNS: `CSV file contains too many columns. Maximum allowed: ${SUPER_ENRICH_CONFIG.CSV_LIMITS.MAX_COLUMNS} columns`,
   UPGRADE_PROMPT: isUnlimitedMode
     ? ""
     : "To process larger datasets with unlimited rows and columns, clone the repository and run it locally.",

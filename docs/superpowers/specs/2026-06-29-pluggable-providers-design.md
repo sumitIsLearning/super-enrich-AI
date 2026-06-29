@@ -5,7 +5,7 @@
 
 ## Summary
 
-Fire Enrich currently hardwires two services: **Firecrawl** for scraping/search and
+Super Enrich currently hardwires two services: **Firecrawl** for scraping/search and
 **OpenAI** for extraction. This work makes both **swappable**, adds a **scorecard**
 (measured quality + published cost) to guide selection, and adds **field bundles**
 (named, reusable sets of fields). Selection is **manual per run**; ranking is
@@ -17,7 +17,7 @@ Fire Enrich currently hardwires two services: **Firecrawl** for scraping/search 
 - `lib/services/openai.ts` — `OpenAIService(apiKey)`: extraction (`extractStructuredDataWithCorroboration`, `extractStructuredDataOriginal`), plus query generation, chat/Q&A helpers. Model ids (`gpt-5`, `gpt-5-mini`) are string literals; structured output uses `zodResponseFormat`.
 - `lib/agent-architecture/orchestrator.ts` — constructs both services directly from API keys; runs phased agents.
 - `app/api/enrich/route.ts` — reads keys from env or `X-OpenAI-API-Key` / `X-Firecrawl-API-Key` headers; builds `AgentEnrichmentStrategy(openaiApiKey, firecrawlApiKey)`; streams SSE.
-- `app/fire-enrich/field-mapper.tsx` — `PRESET_FIELDS` list + add-custom + AI-generated fields (`/api/generate-fields`).
+- `app/super-enrich/field-mapper.tsx` — `PRESET_FIELDS` list + add-custom + AI-generated fields (`/api/generate-fields`).
 - No database. Sessions are in-memory. Node.js runtime.
 
 ## Goals
@@ -130,7 +130,7 @@ and instead receives a `ScraperProvider` and an extraction client.
 ### Sub-project 2 — Telemetry & ranking
 
 **Storage interface** (`lib/storage/types.ts`) with a SQLite implementation
-(`lib/storage/sqlite.ts`, `better-sqlite3`, file at `data/fire-enrich.db`).
+(`lib/storage/sqlite.ts`, `better-sqlite3`, file at `data/super-enrich.db`).
 
 Tables:
 
