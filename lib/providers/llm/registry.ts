@@ -15,11 +15,11 @@ export function getLLM(modelId: string, apiKey: string): LanguageModel {
     }
     case 'google': {
       const provider = createGoogleGenerativeAI({ apiKey });
-      return provider(modelSlug);
+      return provider(modelSlug) as unknown as LanguageModel;
     }
     case 'openrouter': {
       const provider = createOpenRouter({ apiKey });
-      return provider(modelSlug);
+      return provider(modelSlug) as unknown as LanguageModel;
     }
     default:
       throw new Error(`Unknown LLM model id: ${modelId}`);

@@ -19,7 +19,7 @@ export class TavilyAdapter implements ScraperProvider {
     try {
       const response = await this.client.search(query, {
         maxResults: limit,
-        includeRawContent: true,
+        includeRawContent: 'markdown' as const,
       });
       return (response.results ?? []).map((r) => ({
         url: r.url,
