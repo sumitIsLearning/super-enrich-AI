@@ -1,12 +1,14 @@
 import { AgentOrchestrator } from './orchestrator';
+import type { ScraperProvider } from '../providers/scraper/types';
+import type { LLMExtractor } from '../providers/llm/extraction';
 
 export { AgentOrchestrator } from './orchestrator';
 export * from './core/types';
 
 // Factory function for easy initialization
 export function createAgentOrchestrator(
-  firecrawlApiKey: string,
-  openaiApiKey: string
+  scraper: ScraperProvider,
+  llm: LLMExtractor
 ) {
-  return new AgentOrchestrator(firecrawlApiKey, openaiApiKey);
+  return new AgentOrchestrator(scraper, llm);
 }
