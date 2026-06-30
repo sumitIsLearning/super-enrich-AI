@@ -8,6 +8,7 @@ import { ArrowLeft, ExternalLink, Loader2 } from "lucide-react";
 import { CSVUploader } from "./csv-uploader";
 import { UnifiedEnrichmentView } from "./unified-enrichment-view";
 import { EnrichmentTable } from "./enrichment-table";
+import { ProviderPicker } from "./provider-picker";
 import { CSVRow, EnrichmentField } from "@/lib/types";
 import {
   Dialog,
@@ -41,6 +42,8 @@ export default function CSVEnrichmentPage() {
     rows: CSVRow[];
     columns: string[];
   } | null>(null);
+  const [scraperId, setScraperId] = useState('firecrawl');
+  const [llmModelId, setLlmModelId] = useState('openai:gpt-4o');
 
   // Check environment status on component mount
   useEffect(() => {
@@ -268,11 +271,19 @@ export default function CSVEnrichmentPage() {
           {step === "upload" && <CSVUploader onUpload={handleCSVUpload} />}
 
           {step === "setup" && csvData && (
-            <UnifiedEnrichmentView
-              rows={csvData.rows}
-              columns={csvData.columns}
-              onStartEnrichment={handleStartEnrichment}
-            />
+            <div className="space-y-6">
+              <ProviderPicker
+                scraperId={scraperId}
+                llmModelId={llmModelId}
+                onScraperChange={setScraperId}
+                onLlmChange={setLlmModelId}
+              />
+              <UnifiedEnrichmentView
+                rows={csvData.rows}
+                columns={csvData.columns}
+                onStartEnrichment={handleStartEnrichment}
+              />
+            </div>
           )}
 
           {step === "enrichment" && csvData && (
@@ -289,6 +300,8 @@ export default function CSVEnrichmentPage() {
                 rows={csvData.rows}
                 fields={selectedFields}
                 emailColumn={emailColumn}
+                scraperId={scraperId}
+                llmModelId={llmModelId}
               />
               <div className="mt-6 text-center">
                 <Button variant="orange" onClick={resetProcess}>

@@ -34,12 +34,16 @@ interface EnrichmentTableProps {
   rows: CSVRow[];
   fields: EnrichmentField[];
   emailColumn?: string;
+  scraperId?: string;
+  llmModelId?: string;
 }
 
 export function EnrichmentTable({
   rows,
   fields,
   emailColumn,
+  scraperId,
+  llmModelId,
 }: EnrichmentTableProps) {
   const [results, setResults] = useState<Map<number, RowEnrichmentResult>>(
     new Map(),
@@ -141,6 +145,8 @@ export function EnrichmentTable({
           emailColumn,
           useAgents,
           useV2Architecture: true, // Use new agent architecture when agents are enabled
+          scraperId,
+          llmModelId,
         }),
       });
 
