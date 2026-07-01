@@ -6,8 +6,8 @@ Canonical guide for AI agents and contributors working in this repo. Other agent
 
 **Super Enrich** — provider-agnostic, AI-powered data enrichment. Upload a CSV of emails, pick the fields you want, and a phased multi-agent pipeline returns structured, source-cited company data, streamed row by row.
 
-**Ships today:** Firecrawl (scrape/search) + OpenAI (extraction).
-**Direction (designed, not yet built):** swappable scrapers + LLMs, measured cost/quality rankings, saved field bundles. See `docs/superpowers/specs/2026-06-29-pluggable-providers-design.md`. Do not document unbuilt features as current.
+**Ships today:** pluggable scraper/LLM providers (Firecrawl/Tavily/Serper + OpenAI/Gemini/OpenRouter) with a manual picker.
+**Roadmap:** see `docs/FEATURE_TRACKER.md` for the version-sliced MVP/V1/V2/V3 plan and current build status; `docs/FEATURES.md` for the full long-term feature vision. Do not document unbuilt features as current — check the tracker before claiming a feature is shipped.
 
 ## Stack
 
