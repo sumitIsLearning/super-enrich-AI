@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSession } from "@/lib/auth/client";
+import { SignOutButton } from "@/components/sign-out-button";
 
 //Enrich Specific Components
 import { CSVUploader } from "./super-enrich/csv-uploader";
@@ -44,6 +47,12 @@ import {
 import Input from "@/components/ui/input";
 
 export default function HomePage() {
+  const router = useRouter();
+  const { data: session, isPending } = useSession();
+  useEffect(() => {
+    if (!isPending && !session) router.push("/login");
+  }, [isPending, session, router]);
+
   //enrich-states
   const [step, setStep] = useState<"upload" | "setup" | "enrichment">("upload");
   const [csvData, setCsvData] = useState<{
@@ -231,7 +240,7 @@ export default function HomePage() {
               <div className="flex gap-24 items-center">
                 <HeaderBrandKit />
               </div>
-              <div className="flex gap-8">
+              <div className="flex gap-8 items-center">
                 <a
                   className="contents"
                   href="https://github.com/sumitIsLearning/super-enrich-AI"
@@ -242,6 +251,7 @@ export default function HomePage() {
                     View on GitHub
                   </ButtonUI>
                 </a>
+                <SignOutButton />
               </div>
             </div>
           ) : (
@@ -250,7 +260,7 @@ export default function HomePage() {
                 <div className="flex gap-24 items-center">
                   <HeaderBrandKit />
                 </div>
-                <div className="flex gap-8">
+                <div className="flex gap-8 items-center">
                   <a
                     className="contents"
                     href="https://github.com/sumitIsLearning/super-enrich-AI"
@@ -261,6 +271,7 @@ export default function HomePage() {
                       View on GitHub
                     </ButtonUI>
                   </a>
+                  <SignOutButton />
                 </div>
               </div>
             </HeaderWrapper>

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@/lib/auth';
 import { AgentEnrichmentStrategy } from '@/lib/strategies/agent-enrichment-strategy';
 import type { EnrichmentRequest, RowEnrichmentResult } from '@/lib/types';
 import { loadSkipList, shouldSkipEmail, getSkipReason } from '@/lib/utils/skip-list';
@@ -14,6 +15,11 @@ export const runtime = 'nodejs';
 const activeSessions = new Map<string, AbortController>();
 
 export async function POST(request: NextRequest) {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
   try {
     // Add request body size check
     const contentLength = request.headers.get('content-length');
