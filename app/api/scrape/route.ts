@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import FirecrawlApp from '@mendable/firecrawl-js';
 import { isRateLimited } from '@/lib/rate-limit';
+import { requireApiSession } from '@/lib/auth/session';
 
 interface ScrapeRequestBody {
   url?: string;
@@ -19,6 +20,9 @@ interface ApiError extends Error {
 }
 
 export async function POST(request: NextRequest) {
+  const unauthorized = await requireApiSession(request.headers);
+  if (unauthorized) return unauthorized;
+
   const rateLimit = await isRateLimited(request, 'scrape');
   
   if (!rateLimit.success) {

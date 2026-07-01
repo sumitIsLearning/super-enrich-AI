@@ -12,3 +12,10 @@ export async function requireSession() {
   if (!session) redirect("/login");
   return session;
 }
+
+/** API-route guard: returns a 401 Response when unauthenticated, otherwise null. */
+export async function requireApiSession(headers: Headers): Promise<Response | null> {
+  const session = await auth.api.getSession({ headers });
+  if (!session) return new Response("Unauthorized", { status: 401 });
+  return null;
+}

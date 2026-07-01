@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { FirecrawlService } from '@/lib/services/firecrawl';
 import { OpenAIService } from '@/lib/services/openai';
+import { requireApiSession } from '@/lib/auth/session';
 
 export const runtime = 'nodejs';
 
@@ -8,6 +9,9 @@ export const runtime = 'nodejs';
 const activeQueries = new Map<string, AbortController>();
 
 export async function POST(request: NextRequest) {
+  const unauthorized = await requireApiSession(request.headers);
+  if (unauthorized) return unauthorized;
+
   try {
     const { question, context, conversationHistory, sessionId } = await request.json();
 
@@ -278,6 +282,9 @@ export async function POST(request: NextRequest) {
 
 // Stop endpoint
 export async function DELETE(request: NextRequest) {
+  const unauthorized = await requireApiSession(request.headers);
+  if (unauthorized) return unauthorized;
+
   const { searchParams } = new URL(request.url);
   const queryId = searchParams.get('queryId');
 

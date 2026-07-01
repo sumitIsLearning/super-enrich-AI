@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireApiSession } from '@/lib/auth/session';
 import { AgentEnrichmentStrategy } from '@/lib/strategies/agent-enrichment-strategy';
 import type { EnrichmentRequest, RowEnrichmentResult } from '@/lib/types';
 import { loadSkipList, shouldSkipEmail, getSkipReason } from '@/lib/utils/skip-list';
@@ -15,10 +15,8 @@ export const runtime = 'nodejs';
 const activeSessions = new Map<string, AbortController>();
 
 export async function POST(request: NextRequest) {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session) {
-    return new Response("Unauthorized", { status: 401 });
-  }
+  const unauthorized = await requireApiSession(request.headers);
+  if (unauthorized) return unauthorized;
 
   try {
     // Add request body size check
@@ -337,10 +335,11 @@ export async function POST(request: NextRequest) {
 
 // Cancel endpoint
 export async function DELETE(request: NextRequest) {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session) {
-    return new Response("Unauthorized", { status: 401 });
-  }
+  const unauthorized = await requireApiSession(request.headers);
+  if (unauthorized) return unauthorized;
+
+  // TODO(auth): no per-user ownership check — any authenticated user can cancel any run by sessionId.
+  // Revisit when runs become user-scoped (activeSessions is a global map today).
 
   const { searchParams } = new URL(request.url);
   const sessionId = searchParams.get('sessionId');
