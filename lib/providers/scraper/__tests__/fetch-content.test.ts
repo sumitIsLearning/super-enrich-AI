@@ -37,4 +37,26 @@ describe('fetchPageContent', () => {
     const result = await fetchPageContent('https://example.com/missing');
     expect(result).toBeNull();
   });
+
+  it('blocks SSRF to loopback/private IP literals without fetching', async () => {
+    const fetchSpy = vi.fn();
+    global.fetch = fetchSpy;
+
+    for (const target of ['http://127.0.0.1/', 'http://169.254.169.254/latest/meta-data', 'http://10.0.0.5/', 'http://[::1]/']) {
+      const result = await fetchPageContent(target);
+      expect(result).toBeNull();
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('blocks a redirect that points at a private IP', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 302,
+      headers: { get: (k: string) => (k.toLowerCase() === 'location' ? 'http://127.0.0.1/admin' : null) },
+    } as unknown as Response);
+
+    const result = await fetchPageContent('https://example.com/redirector');
+    expect(result).toBeNull();
+  });
 });

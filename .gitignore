@@ -40,3 +40,4 @@ next-env.d.ts
 /.serena/
 /.code-review-graph/
 /data/
+/graphify-out/
