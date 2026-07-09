@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
+import { requireApiSession } from '@/lib/auth/session';
 import { FieldGenerationResponse } from '@/lib/types/field-generation';
 
 export async function POST(request: NextRequest) {
+  const unauthorized = await requireApiSession(request.headers);
+  if (unauthorized) return unauthorized;
+
   try {
     const { prompt } = await request.json();
 

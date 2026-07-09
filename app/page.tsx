@@ -2,12 +2,20 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSession } from "@/lib/auth/client";
+import { SignOutButton } from "@/components/sign-out-button";
 
 //Enrich Specific Components
-import { CSVUploader } from "./super-enrich/csv-uploader";
-import { UnifiedEnrichmentView } from "./super-enrich/unified-enrichment-view";
-import { EnrichmentTable } from "./super-enrich/enrichment-table";
+import { CSVUploader } from "@/components/super-enrich/csv-uploader";
+import { UnifiedEnrichmentView } from "@/components/super-enrich/unified-enrichment-view";
+import { EnrichmentTable } from "@/components/super-enrich/enrichment-table";
+import { ProviderPicker } from "@/components/super-enrich/provider-picker";
+import {
+  PROVIDER_KEYS,
+  providerIdsForSelection,
+} from "@/lib/providers/client-keys";
 import { CSVRow, EnrichmentField } from "@/lib/types";
 
 // Import shared components
@@ -44,6 +52,12 @@ import {
 import Input from "@/components/ui/input";
 
 export default function HomePage() {
+  const router = useRouter();
+  const { data: session, isPending } = useSession();
+  useEffect(() => {
+    if (!isPending && !session) router.push("/login");
+  }, [isPending, session, router]);
+
   //enrich-states
   const [step, setStep] = useState<"upload" | "setup" | "enrichment">("upload");
   const [csvData, setCsvData] = useState<{
@@ -54,82 +68,51 @@ export default function HomePage() {
   const [selectedFields, setSelectedFields] = useState<EnrichmentField[]>([]);
   const [isCheckingEnv, setIsCheckingEnv] = useState(true);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
-  const [firecrawlApiKey, setFirecrawlApiKey] = useState<string>("");
-  const [openaiApiKey, setOpenaiApiKey] = useState<string>("");
-  const [isValidatingApiKey, setIsValidatingApiKey] = useState(false);
-  const [missingKeys, setMissingKeys] = useState<{
-    firecrawl: boolean;
-    openai: boolean;
-  }>({ firecrawl: false, openai: false });
-  const [pendingCSVData, setPendingCSVData] = useState<{
-    rows: CSVRow[];
-    columns: string[];
+  const [scraperId, setScraperId] = useState("firecrawl");
+  const [llmModelId, setLlmModelId] = useState("openai:gpt-4o");
+  const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
+  const [missingProviders, setMissingProviders] = useState<string[]>([]);
+  const [pendingEnrichment, setPendingEnrichment] = useState<{
+    emailColumn: string;
+    fields: EnrichmentField[];
   } | null>(null);
+  const [chatEnabled, setChatEnabled] = useState(false);
 
-  //enrich effect function
+  // Provider keys are now checked at Start time (per selected provider),
+  // not on mount. Nothing to preload here.
   useEffect(() => {
-    const checkEnvironment = async () => {
-      try {
-        const response = await fetch("/api/check-env");
-        if (!response.ok) {
-          throw new Error("Failed to check environment");
-        }
-        const data = await response.json();
-        const hasFirecrawl = data.environmentStatus.FIRECRAWL_API_KEY;
-        const hasOpenAI = data.environmentStatus.OPENAI_API_KEY;
-
-        if (!hasFirecrawl) {
-          // Check localStorage for saved API key
-          const savedKey = localStorage.getItem("firecrawl_api_key");
-          if (savedKey) {
-            setFirecrawlApiKey(savedKey);
-          }
-        }
-
-        if (!hasOpenAI) {
-          // Check localStorage for saved API key
-          const savedKey = localStorage.getItem("openai_api_key");
-          if (savedKey) {
-            setOpenaiApiKey(savedKey);
-          }
-        }
-      } catch (error) {
-        console.error("Error checking environment:", error);
-      } finally {
-        setIsCheckingEnv(false);
-      }
-    };
-
-    checkEnvironment();
+    setIsCheckingEnv(false);
   }, []);
 
-  const handleCSVUpload = async (rows: CSVRow[], columns: string[]) => {
-    // Check if we have Firecrawl API key
-    const response = await fetch("/api/check-env");
-    const data = await response.json();
-    const hasFirecrawl = data.environmentStatus.FIRECRAWL_API_KEY;
-    const hasOpenAI = data.environmentStatus.OPENAI_API_KEY;
-    const savedFirecrawlKey = localStorage.getItem("firecrawl_api_key");
-    const savedOpenAIKey = localStorage.getItem("openai_api_key");
-
-    if (
-      (!hasFirecrawl && !savedFirecrawlKey) ||
-      (!hasOpenAI && !savedOpenAIKey)
-    ) {
-      // Save the CSV data temporarily and show API key modal
-      setPendingCSVData({ rows, columns });
-      setMissingKeys({
-        firecrawl: !hasFirecrawl && !savedFirecrawlKey,
-        openai: !hasOpenAI && !savedOpenAIKey,
-      });
-      setShowApiKeyModal(true);
-    } else {
-      setCsvData({ rows, columns });
-      setStep("setup");
-    }
+  const handleCSVUpload = (rows: CSVRow[], columns: string[]) => {
+    // Provider is not chosen yet at upload time, so no key gate here.
+    setCsvData({ rows, columns });
+    setStep("setup");
   };
 
-  const handleStartEnrichment = (email: string, fields: EnrichmentField[]) => {
+  const handleStartEnrichment = async (
+    email: string,
+    fields: EnrichmentField[],
+  ) => {
+    const response = await fetch("/api/check-env");
+    const data = await response.json();
+    const has = (id: string) =>
+      !!data.environmentStatus[PROVIDER_KEYS[id].envStatusKey] ||
+      !!localStorage.getItem(PROVIDER_KEYS[id].localStorageKey);
+
+    // Chat is hardcoded to Firecrawl + OpenAI; only show it when both keys exist.
+    setChatEnabled(has("firecrawl") && has("openai"));
+
+    const missing = providerIdsForSelection(scraperId, llmModelId).filter(
+      (id) => !has(id),
+    );
+    if (missing.length > 0) {
+      setPendingEnrichment({ emailColumn: email, fields });
+      setMissingProviders(missing);
+      setShowApiKeyModal(true);
+      return;
+    }
+
     setEmailColumn(email);
     setSelectedFields(fields);
     setStep("enrichment");
@@ -150,73 +133,27 @@ export default function HomePage() {
     setSelectedFields([]);
   };
 
-  const openFirecrawlWebsite = () => {
-    window.open("https://www.firecrawl.dev", "_blank");
-  };
-
-  const handleApiKeySubmit = async () => {
-    // Check environment again to see what's missing
-    const response = await fetch("/api/check-env");
-    const data = await response.json();
-    const hasEnvFirecrawl = data.environmentStatus.FIRECRAWL_API_KEY;
-    const hasEnvOpenAI = data.environmentStatus.OPENAI_API_KEY;
-    const hasSavedFirecrawl = localStorage.getItem("firecrawl_api_key");
-    const hasSavedOpenAI = localStorage.getItem("openai_api_key");
-
-    const needsFirecrawl = !hasEnvFirecrawl && !hasSavedFirecrawl;
-    const needsOpenAI = !hasEnvOpenAI && !hasSavedOpenAI;
-
-    if (needsFirecrawl && !firecrawlApiKey.trim()) {
-      toast.error("Please enter a valid Firecrawl API key");
-      return;
+  const handleApiKeySubmit = () => {
+    for (const id of missingProviders) {
+      if (!(keyInputs[id] ?? "").trim()) {
+        toast.error(`Please enter a valid ${PROVIDER_KEYS[id].label} API key`);
+        return;
+      }
     }
 
-    if (needsOpenAI && !openaiApiKey.trim()) {
-      toast.error("Please enter a valid OpenAI API key");
-      return;
+    for (const id of missingProviders) {
+      localStorage.setItem(PROVIDER_KEYS[id].localStorageKey, keyInputs[id].trim());
     }
 
-    setIsValidatingApiKey(true);
+    toast.success("API keys saved successfully!");
+    setShowApiKeyModal(false);
 
-    try {
-      // Test the Firecrawl API key if provided
-      if (firecrawlApiKey) {
-        const response = await fetch("/api/scrape", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Firecrawl-API-Key": firecrawlApiKey,
-          },
-          body: JSON.stringify({ url: "https://example.com" }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Invalid Firecrawl API key");
-        }
-
-        // Save the API key to localStorage
-        localStorage.setItem("firecrawl_api_key", firecrawlApiKey);
-      }
-
-      // Save OpenAI API key if provided
-      if (openaiApiKey) {
-        localStorage.setItem("openai_api_key", openaiApiKey);
-      }
-
-      toast.success("API keys saved successfully!");
-      setShowApiKeyModal(false);
-
-      // Process the pending CSV data
-      if (pendingCSVData) {
-        setCsvData(pendingCSVData);
-        setStep("setup");
-        setPendingCSVData(null);
-      }
-    } catch (error) {
-      toast.error("Invalid API key. Please check and try again.");
-      console.error("API key validation error:", error);
-    } finally {
-      setIsValidatingApiKey(false);
+    // Resume the enrichment the user was starting.
+    if (pendingEnrichment) {
+      setEmailColumn(pendingEnrichment.emailColumn);
+      setSelectedFields(pendingEnrichment.fields);
+      setStep("enrichment");
+      setPendingEnrichment(null);
     }
   };
 
@@ -231,7 +168,7 @@ export default function HomePage() {
               <div className="flex gap-24 items-center">
                 <HeaderBrandKit />
               </div>
-              <div className="flex gap-8">
+              <div className="flex gap-8 items-center">
                 <a
                   className="contents"
                   href="https://github.com/sumitIsLearning/super-enrich-AI"
@@ -242,6 +179,7 @@ export default function HomePage() {
                     View on GitHub
                   </ButtonUI>
                 </a>
+                <SignOutButton />
               </div>
             </div>
           ) : (
@@ -250,7 +188,7 @@ export default function HomePage() {
                 <div className="flex gap-24 items-center">
                   <HeaderBrandKit />
                 </div>
-                <div className="flex gap-8">
+                <div className="flex gap-8 items-center">
                   <a
                     className="contents"
                     href="https://github.com/sumitIsLearning/super-enrich-AI"
@@ -261,6 +199,7 @@ export default function HomePage() {
                       View on GitHub
                     </ButtonUI>
                   </a>
+                  <SignOutButton />
                 </div>
               </div>
             </HeaderWrapper>
@@ -295,12 +234,6 @@ export default function HomePage() {
                     <br className="lg-max:hidden" />
                     crawled from all over the internet.
                   </p>
-                  <Link
-                    className="bg-black-alpha-4 hover:bg-black-alpha-6 rounded-6 px-8 lg:px-6 text-label-large h-30 lg:h-24 block mt-8 mx-auto w-max gap-4 transition-all"
-                    href="https://firecrawl.dev"
-                  >
-                    Powered by Firecrawl
-                  </Link>
                 </motion.div>
               ) : (
                 <motion.div
@@ -339,7 +272,13 @@ export default function HomePage() {
                         }}
                       >
                         {csvData && (
-                          <div className="w-full">
+                          <div className="w-full space-y-6">
+                            <ProviderPicker
+                              scraperId={scraperId}
+                              llmModelId={llmModelId}
+                              onScraperChange={setScraperId}
+                              onLlmChange={setLlmModelId}
+                            />
                             <UnifiedEnrichmentView
                               rows={csvData.rows}
                               columns={csvData.columns}
@@ -365,6 +304,9 @@ export default function HomePage() {
                         rows={csvData.rows}
                         fields={selectedFields}
                         emailColumn={emailColumn}
+                        scraperId={scraperId}
+                        llmModelId={llmModelId}
+                        chatEnabled={chatEnabled}
                       />
                     </motion.div>
                   )}
@@ -424,99 +366,63 @@ export default function HomePage() {
           <DialogHeader>
             <DialogTitle>API Keys Required</DialogTitle>
             <DialogDescription>
-              This tool requires API keys for Firecrawl and OpenAI to enrich
-              your CSV data.
+              Enter an API key for each selected provider to enrich your CSV
+              data.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-4">
-            {missingKeys.firecrawl && (
-              <>
-                <Button
-                  onClick={openFirecrawlWebsite}
-                  variant="secondary"
-                  size="default"
-                  className="flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <ExternalLink style={{ width: '20px', height: '20px', minWidth: '20px', minHeight: '20px' }} />
-                  Get Firecrawl API Key
-                </Button>
-                <div className="flex flex-col gap-2">
-                  <label
-                    htmlFor="firecrawl-key"
-                    className="text-body-small font-medium"
-                  >
-                    Firecrawl API Key
-                  </label>
+            {missingProviders.map((id) => {
+              const info = PROVIDER_KEYS[id];
+              return (
+                <div key={id} className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <label
+                      htmlFor={`${id}-key`}
+                      className="text-body-small font-medium"
+                    >
+                      {info.label} API Key
+                    </label>
+                    <a
+                      href={info.docsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-body-small text-black-alpha-56"
+                    >
+                      <ExternalLink style={{ width: '16px', height: '16px', minWidth: '16px', minHeight: '16px' }} />
+                      Get {info.label} key
+                    </a>
+                  </div>
                   <Input
-                    id="firecrawl-key"
+                    id={`${id}-key`}
                     type="password"
-                    placeholder="fc-..."
-                    value={firecrawlApiKey}
-                    onChange={(e) => setFirecrawlApiKey(e.target.value)}
-                    disabled={isValidatingApiKey}
-                  />
-                </div>
-              </>
-            )}
-
-            {missingKeys.openai && (
-              <>
-                <Button
-                  onClick={() =>
-                    window.open(
-                      "https://platform.openai.com/api-keys",
-                      "_blank",
-                    )
-                  }
-                  variant="secondary"
-                  size="default"
-                  className="flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <ExternalLink style={{ width: '20px', height: '20px', minWidth: '20px', minHeight: '20px' }} />
-                  Get OpenAI API Key
-                </Button>
-                <div className="flex flex-col gap-2">
-                  <label htmlFor="openai-key" className="text-body-small font-medium">
-                    OpenAI API Key
-                  </label>
-                  <Input
-                    id="openai-key"
-                    type="password"
-                    placeholder="sk-..."
-                    value={openaiApiKey}
-                    onChange={(e) => setOpenaiApiKey(e.target.value)}
+                    placeholder={info.placeholder}
+                    value={keyInputs[id] ?? ""}
+                    onChange={(e) =>
+                      setKeyInputs((prev) => ({ ...prev, [id]: e.target.value }))
+                    }
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && !isValidatingApiKey) {
-                        handleApiKeySubmit();
-                      }
+                      if (e.key === "Enter") handleApiKeySubmit();
                     }}
-                    disabled={isValidatingApiKey}
                   />
                 </div>
-              </>
-            )}
+              );
+            })}
           </div>
           <DialogFooter>
             <Button
               variant="secondary"
               onClick={() => setShowApiKeyModal(false)}
-              disabled={isValidatingApiKey}
             >
               Cancel
             </Button>
             <Button
               onClick={handleApiKeySubmit}
-              disabled={isValidatingApiKey || !firecrawlApiKey.trim()}
+              disabled={missingProviders.some(
+                (id) => !(keyInputs[id] ?? "").trim(),
+              )}
               variant="primary"
             >
-              {isValidatingApiKey ? (
-                <>
-                  <Loader2 style={{ width: '20px', height: '20px', minWidth: '20px', minHeight: '20px' }} className="mr-2 animate-spin" />
-                  Validating...
-                </>
-              ) : (
-                "Submit"
-              )}
+              Submit
             </Button>
           </DialogFooter>
         </DialogContent>

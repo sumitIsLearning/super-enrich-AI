@@ -1,17 +1,16 @@
 import { AgentOrchestrator } from '../agent-architecture';
 import type { CSVRow, EnrichmentField, RowEnrichmentResult, EnrichmentResult } from '../types';
 import { shouldSkipEmail, loadSkipList, getSkipReason } from '../utils/skip-list';
+import type { ScraperProvider } from '../providers/scraper/types';
+import type { LLMExtractor } from '../providers/llm/extraction';
 
 export class AgentEnrichmentStrategy {
   private orchestrator: AgentOrchestrator;
-  
-  constructor(
-    openaiApiKey: string,
-    firecrawlApiKey: string,
-  ) {
-    this.orchestrator = new AgentOrchestrator(firecrawlApiKey, openaiApiKey);
+
+  constructor(scraper: ScraperProvider, llm: LLMExtractor) {
+    this.orchestrator = new AgentOrchestrator(scraper, llm);
   }
-  
+
   async enrichRow(
     row: CSVRow,
     fields: EnrichmentField[],
@@ -21,10 +20,8 @@ export class AgentEnrichmentStrategy {
   ): Promise<RowEnrichmentResult> {
     const email = row[emailColumn];
     console.log(`[AgentEnrichmentStrategy] Starting enrichment for email: ${email}`);
-    console.log(`[AgentEnrichmentStrategy] Requested fields: ${fields.map(f => f.name).join(', ')}`);
-    
+
     if (!email) {
-      console.log(`[AgentEnrichmentStrategy] No email found in column: ${emailColumn}`);
       return {
         rowIndex: 0,
         originalData: row,
@@ -33,12 +30,10 @@ export class AgentEnrichmentStrategy {
         error: 'No email found in specified column',
       };
     }
-    
-    // Check skip list
+
     const skipList = await loadSkipList();
     if (shouldSkipEmail(email, skipList)) {
       const skipReason = getSkipReason(email, skipList);
-      console.log(`[AgentEnrichmentStrategy] Skipping email ${email}: ${skipReason}`);
       return {
         rowIndex: 0,
         originalData: row,
@@ -47,10 +42,8 @@ export class AgentEnrichmentStrategy {
         error: skipReason,
       };
     }
-    
+
     try {
-      console.log(`[AgentEnrichmentStrategy] Delegating to AgentOrchestrator`);
-      // Use the agent orchestrator for enrichment
       const result = await this.orchestrator.enrichRow(
         row,
         fields,
@@ -58,22 +51,15 @@ export class AgentEnrichmentStrategy {
         onProgress,
         onAgentProgress
       );
-      
-      // Filter out null values to match the expected type
+
       const filteredEnrichments: Record<string, EnrichmentResult> = {};
       for (const [key, enrichment] of Object.entries(result.enrichments)) {
         if (enrichment.value !== null) {
           filteredEnrichments[key] = enrichment as EnrichmentResult;
         }
       }
-      
-      const enrichedCount = Object.keys(filteredEnrichments).length;
-      console.log(`[AgentEnrichmentStrategy] Orchestrator returned ${enrichedCount} enriched fields`);
-      
-      return {
-        ...result,
-        enrichments: filteredEnrichments
-      };
+
+      return { ...result, enrichments: filteredEnrichments };
     } catch (error) {
       console.error('[AgentEnrichmentStrategy] Enrichment error:', error);
       return {

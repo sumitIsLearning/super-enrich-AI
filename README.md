@@ -88,7 +88,7 @@ You can also enter API keys directly in the browser instead of using env vars â€
 
 ## Configuration & Unlimited Mode
 
-Running locally enables **Unlimited Mode** (no row/column/field caps). Configure in [`app/super-enrich/config.ts`](app/super-enrich/config.ts):
+Running locally enables **Unlimited Mode** (no row/column/field caps). Configure in [`components/super-enrich/config.ts`](components/super-enrich/config.ts):
 
 ```typescript
 const isUnlimitedMode =

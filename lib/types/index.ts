@@ -17,6 +17,8 @@ export interface EnrichmentRequest {
   nameColumn?: string;
   useAgents?: boolean;
   useV2Architecture?: boolean;
+  scraperId?: string;    // e.g. 'firecrawl' | 'tavily' | 'serper'
+  llmModelId?: string;  // e.g. 'openai:gpt-4o' | 'google:gemini-2.5-pro'
 }
 
 export interface SearchResult {

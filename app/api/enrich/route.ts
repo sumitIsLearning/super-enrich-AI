@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireApiSession } from '@/lib/auth/session';
 import { AgentEnrichmentStrategy } from '@/lib/strategies/agent-enrichment-strategy';
 import type { EnrichmentRequest, RowEnrichmentResult } from '@/lib/types';
 import { loadSkipList, shouldSkipEmail, getSkipReason } from '@/lib/utils/skip-list';
 import { ENRICHMENT_CONFIG } from '@/lib/config/enrichment';
+import { getScraper } from '@/lib/providers/scraper/registry';
+import { getLLM } from '@/lib/providers/llm/registry';
+import { createLLMExtractor } from '@/lib/providers/llm/extraction';
 
 // Use Node.js runtime for better compatibility
 export const runtime = 'nodejs';
@@ -11,6 +15,9 @@ export const runtime = 'nodejs';
 const activeSessions = new Map<string, AbortController>();
 
 export async function POST(request: NextRequest) {
+  const unauthorized = await requireApiSession(request.headers);
+  if (unauthorized) return unauthorized;
+
   try {
     // Add request body size check
     const contentLength = request.headers.get('content-length');
@@ -50,29 +57,52 @@ export async function POST(request: NextRequest) {
     const abortController = new AbortController();
     activeSessions.set(sessionId, abortController);
 
-    // Check environment variables and headers for API keys
-    const openaiApiKey = process.env.OPENAI_API_KEY || request.headers.get('X-OpenAI-API-Key');
-    const firecrawlApiKey = process.env.FIRECRAWL_API_KEY || request.headers.get('X-Firecrawl-API-Key');
-    
-    if (!openaiApiKey || !firecrawlApiKey) {
-      console.error('Missing API keys:', { 
-        hasOpenAI: !!openaiApiKey, 
-        hasFirecrawl: !!firecrawlApiKey 
-      });
+    const scraperId: string = body.scraperId ?? 'firecrawl';
+    const llmModelId: string = body.llmModelId ?? 'openai:gpt-4o';
+    const [llmProvider] = llmModelId.split(':');
+
+    const scraperKeyMap: Record<string, string> = {
+      firecrawl: process.env.FIRECRAWL_API_KEY || request.headers.get('X-Firecrawl-API-Key') || '',
+      tavily:    process.env.TAVILY_API_KEY    || request.headers.get('X-Tavily-API-Key')    || '',
+      serper:    process.env.SERPER_API_KEY    || request.headers.get('X-Serper-API-Key')    || '',
+    };
+    const llmKeyMap: Record<string, string> = {
+      openai:     process.env.OPENAI_API_KEY     || request.headers.get('X-OpenAI-API-Key')     || '',
+      google:     process.env.GOOGLE_API_KEY     || request.headers.get('X-Google-API-Key')     || '',
+      openrouter: process.env.OPENROUTER_API_KEY || request.headers.get('X-OpenRouter-API-Key') || '',
+    };
+
+    const scraperApiKey = scraperKeyMap[scraperId] ?? '';
+    const llmApiKey = llmKeyMap[llmProvider] ?? '';
+
+    if (!scraperApiKey) {
       return NextResponse.json(
-        { error: 'Server configuration error: Missing API keys' },
-        { status: 500 }
+        { error: `Missing API key for scraper "${scraperId}". Set ${scraperId.toUpperCase().replace(/-/g, '_')}_API_KEY or pass X-${scraperId}-API-Key header.` },
+        { status: 400 }
+      );
+    }
+    if (!llmApiKey) {
+      return NextResponse.json(
+        { error: `Missing API key for LLM provider "${llmProvider}". Set ${llmProvider.toUpperCase()}_API_KEY or pass X-${llmProvider}-API-Key header.` },
+        { status: 400 }
       );
     }
 
-    // Always use the advanced agent architecture
-    const strategyName = 'AgentEnrichmentStrategy';
-    
-    console.log(`[STRATEGY] Using ${strategyName} - Advanced multi-agent architecture with specialized agents`);
-    const enrichmentStrategy = new AgentEnrichmentStrategy(
-      openaiApiKey,
-      firecrawlApiKey
-    );
+    let scraperInstance: ReturnType<typeof getScraper>;
+    let enrichmentStrategy: AgentEnrichmentStrategy;
+    try {
+      scraperInstance = getScraper(scraperId, scraperApiKey);
+      const llmModel = getLLM(llmModelId, llmApiKey);
+      const llmExtractor = createLLMExtractor(llmModel);
+      enrichmentStrategy = new AgentEnrichmentStrategy(scraperInstance, llmExtractor);
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'Failed to initialize providers' },
+        { status: 400 }
+      );
+    }
+
+    console.log(`[STRATEGY] scraper=${scraperId}, llm=${llmModelId}`);
 
     // Load skip list
     const skipList = await loadSkipList();
@@ -159,7 +189,7 @@ export async function POST(request: NextRequest) {
 
             try {
               // Enrich the row
-              console.log(`[ENRICHMENT] Processing row ${i + 1}/${rows.length} - Email: ${email} - Strategy: ${strategyName}`);
+              console.log(`[ENRICHMENT] Processing row ${i + 1}/${rows.length} - Email: ${email} - scraper=${scraperId}, llm=${llmModelId}`);
               const startTime = Date.now();
 
               // Agent strategies return RowEnrichmentResult
@@ -305,6 +335,12 @@ export async function POST(request: NextRequest) {
 
 // Cancel endpoint
 export async function DELETE(request: NextRequest) {
+  const unauthorized = await requireApiSession(request.headers);
+  if (unauthorized) return unauthorized;
+
+  // TODO(auth): no per-user ownership check — any authenticated user can cancel any run by sessionId.
+  // Revisit when runs become user-scoped (activeSessions is a global map today).
+
   const { searchParams } = new URL(request.url);
   const sessionId = searchParams.get('sessionId');
 

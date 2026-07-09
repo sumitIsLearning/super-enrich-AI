@@ -1,19 +1,16 @@
 import { EmailContext, RowEnrichmentResult } from './core/types';
 import { EnrichmentResult, SearchResult, EnrichmentField } from '../types';
 import { parseEmail } from '../strategies/email-parser';
-import { FirecrawlService } from '../services/firecrawl';
-import { OpenAIService } from '../services/openai';
+import type { ScraperProvider } from '../providers/scraper/types';
+import type { LLMExtractor } from '../providers/llm/extraction';
 
 export class AgentOrchestrator {
-  private firecrawl: FirecrawlService;
-  private openai: OpenAIService;
-  
-  constructor(
-    private firecrawlApiKey: string,
-    private openaiApiKey: string
-  ) {
-    this.firecrawl = new FirecrawlService(firecrawlApiKey);
-    this.openai = new OpenAIService(openaiApiKey);
+  private scraper: ScraperProvider;
+  private llm: LLMExtractor;
+
+  constructor(scraper: ScraperProvider, llm: LLMExtractor) {
+    this.scraper = scraper;
+    this.llm = llm;
   }
   
   async enrichRow(
@@ -368,7 +365,7 @@ export class AgentOrchestrator {
         onAgentProgress(`Attempting to access ${ctxEmailContext.companyDomain} directly...`, 'info');
       }
       try {
-        const scraped = await this.firecrawl.scrapeUrl(websiteUrl);
+        const scraped = await this.scraper.scrapeUrl(websiteUrl);
         
         if (scraped.data && scraped.data.markdown && this.isValidCompanyWebsite({ markdown: scraped.data.markdown, metadata: scraped.data as Record<string, unknown> })) {
           console.log(`[AGENT-DISCOVERY] Website scrape successful, content length: ${scraped.data.markdown?.length || 0}`);
@@ -505,7 +502,7 @@ export class AgentOrchestrator {
           if (onAgentProgress) {
             onAgentProgress(`Search ${searchQueries.indexOf(query) + 1}/${searchQueries.length}: ${query.substring(0, 60)}...`, 'info');
           }
-          const searchResults = await this.firecrawl.search(
+          const searchResults = await this.scraper.search(
             query,
             { limit: 3 }
           );
@@ -646,7 +643,7 @@ export class AgentOrchestrator {
       onAgentProgress(`Searching for profile information...`, 'info');
     }
     
-    const searchResults = await this.firecrawl.search(searchQuery, { limit: 5, scrapeContent: true });
+    const searchResults = await this.scraper.search(searchQuery, { limit: 5, scrapeContent: true });
     
     console.log(`[AGENT-PROFILE] Found ${searchResults.length} search results`);
     
@@ -670,19 +667,13 @@ export class AgentOrchestrator {
     if (companyName && typeof companyName === 'string') enrichmentContext.companyName = companyName;
     if (ctxEmailContext?.companyDomain) enrichmentContext.targetDomain = ctxEmailContext.companyDomain;
     
-    const enrichmentResults = typeof this.openai.extractStructuredDataWithCorroboration === 'function'
-      ? await this.openai.extractStructuredDataWithCorroboration(
-          combinedContent,
-          fields,
-          enrichmentContext,
-          onAgentProgress
-        )
-      : await this.openai.extractStructuredDataOriginal(
-          combinedContent,
-          fields,
-          enrichmentContext
-        );
-    
+    const enrichmentResults = await this.llm.extractStructuredDataWithCorroboration(
+      combinedContent,
+      fields,
+      enrichmentContext,
+      onAgentProgress
+    );
+
     // Add source URLs to each result (only if not already present from corroboration)
     const blockedDomains = ['linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com'];
     for (const [fieldName, enrichment] of Object.entries(enrichmentResults)) {
@@ -696,7 +687,7 @@ export class AgentOrchestrator {
             return true;
           }
         });
-        
+
         // Only add source if not already present
         if (!enrichment.source) {
           enrichment.source = filteredResults.slice(0, 2).map(r => r.url).join(', ');
@@ -714,7 +705,7 @@ export class AgentOrchestrator {
                 const content = (r.markdown || '').toLowerCase();
                 return content.includes(existingQuote.toLowerCase().substring(0, 50));
               });
-              
+
               if (matchingSource) {
                 enrichment.sourceContext = [{
                   url: matchingSource.url,
@@ -733,18 +724,18 @@ export class AgentOrchestrator {
           // Fallback to finding snippets if LLM didn't provide them
           const { findRelevantSnippet } = await import('../utils/source-context');
           console.log(`[SOURCE-CONTEXT] Using fallback snippet extraction for ${fieldName}`);
-          
+
           enrichment.sourceContext = filteredResults.map(r => {
             const snippet = findRelevantSnippet(
               r.markdown || '',
               enrichment.value,
               fieldName
             );
-            
+
             if (!snippet) {
               console.log(`[SOURCE-CONTEXT] No snippet found for ${fieldName} value "${enrichment.value}" in ${r.url}`);
             }
-            
+
             return {
               url: r.url,
               snippet
@@ -756,15 +747,15 @@ export class AgentOrchestrator {
             }
             return hasSnippet;
           }).slice(0, 5);
-          
+
           console.log(`[SOURCE-CONTEXT] Final source context for ${fieldName}: ${enrichment.sourceContext.length} sources`);
         }
       }
     }
-    
+
     return enrichmentResults;
   }
-  
+
   private async runMetricsPhase(
     context: Record<string, unknown>,
     fields: EnrichmentField[],
@@ -807,7 +798,7 @@ export class AgentOrchestrator {
       onAgentProgress(`Query: ${searchQuery.substring(0, 100)}...`, 'info');
     }
     
-    const searchResults = await this.firecrawl.search(searchQuery, { limit: 5, scrapeContent: true });
+    const searchResults = await this.scraper.search(searchQuery, { limit: 5, scrapeContent: true });
     
     console.log(`[AGENT-METRICS] Found ${searchResults.length} search results`);
     if (onAgentProgress) {
@@ -816,29 +807,22 @@ export class AgentOrchestrator {
     
     // Extract metrics with OpenAI
     const combinedContent = this.trimSearchResultsContent(searchResults, 250000);
-    
+
     if (onAgentProgress && searchResults.length > 0) {
       onAgentProgress(`Extracting metrics from ${searchResults.length} sources...`, 'info');
     }
-    
-    // Use corroboration method if available, otherwise fallback
+
     // Include domain info to help with company matching
     const enrichmentContext: Record<string, string> = {};
     if (companyName && typeof companyName === 'string') enrichmentContext.companyName = companyName;
     if (ctxEmailContext?.companyDomain) enrichmentContext.targetDomain = ctxEmailContext.companyDomain;
-    
-    const enrichmentResults = typeof this.openai.extractStructuredDataWithCorroboration === 'function'
-      ? await this.openai.extractStructuredDataWithCorroboration(
-          combinedContent,
-          fields,
-          enrichmentContext,
-          onAgentProgress
-        )
-      : await this.openai.extractStructuredDataOriginal(
-          combinedContent,
-          fields,
-          enrichmentContext
-        );
+
+    const enrichmentResults = await this.llm.extractStructuredDataWithCorroboration(
+      combinedContent,
+      fields,
+      enrichmentContext,
+      onAgentProgress
+    );
     
     // Add source URLs to each result (only if not already present from corroboration)
     const blockedDomains = ['linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com'];
@@ -962,7 +946,7 @@ export class AgentOrchestrator {
       onAgentProgress(`Query: ${searchQuery.substring(0, 100)}...`, 'info');
     }
     
-    const searchResults = await this.firecrawl.search(searchQuery, { limit: 5, scrapeContent: true });
+    const searchResults = await this.scraper.search(searchQuery, { limit: 5, scrapeContent: true });
     
     console.log(`[AGENT-FUNDING] Found ${searchResults.length} search results`);
     if (onAgentProgress) {
@@ -971,29 +955,22 @@ export class AgentOrchestrator {
     
     // Extract funding data
     const combinedContent = this.trimSearchResultsContent(searchResults, 250000);
-    
+
     if (onAgentProgress && searchResults.length > 0) {
       onAgentProgress(`Extracting funding data from sources...`, 'info');
     }
-    
-    // Use corroboration method if available, otherwise fallback
+
     // Include domain info to help with company matching
     const enrichmentContext: Record<string, string> = {};
     if (companyName && typeof companyName === 'string') enrichmentContext.companyName = companyName;
     if (ctxEmailContext?.companyDomain) enrichmentContext.targetDomain = ctxEmailContext.companyDomain;
-    
-    const enrichmentResults = typeof this.openai.extractStructuredDataWithCorroboration === 'function'
-      ? await this.openai.extractStructuredDataWithCorroboration(
-          combinedContent,
-          fields,
-          enrichmentContext,
-          onAgentProgress
-        )
-      : await this.openai.extractStructuredDataOriginal(
-          combinedContent,
-          fields,
-          enrichmentContext
-        );
+
+    const enrichmentResults = await this.llm.extractStructuredDataWithCorroboration(
+      combinedContent,
+      fields,
+      enrichmentContext,
+      onAgentProgress
+    );
     
     // Add source URLs to each result (only if not already present from corroboration)
     const blockedDomains = ['linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com'];
@@ -1125,7 +1102,7 @@ export class AgentOrchestrator {
     
     let githubResults: SearchResult[] = [];
     try {
-      const searchResponse = await this.firecrawl.search(githubQuery, { 
+      const searchResponse = await this.scraper.search(githubQuery, { 
         limit: 3,
         scrapeContent: true
       });
@@ -1157,7 +1134,7 @@ export class AgentOrchestrator {
     if (companyDomain) {
       try {
         console.log(`[AGENT-TECH-STACK] Fetching HTML from company website for analysis`);
-        const websiteData = await this.firecrawl.scrapeUrl(`https://${companyDomain}`);
+        const websiteData = await this.scraper.scrapeUrl(`https://${companyDomain}`);
         if (websiteData.data && websiteData.data.html) {
           websiteHtml = websiteData.data.html;
           console.log(`[AGENT-TECH-STACK] HTML fetched, length: ${websiteHtml.length}`);
@@ -1179,7 +1156,7 @@ export class AgentOrchestrator {
       onAgentProgress(`Searching for technology stack information...`, 'info');
     }
     
-    const techResults = await this.firecrawl.search(techSearchQuery, { 
+    const techResults = await this.scraper.search(techSearchQuery, { 
       limit: 3,
       scrapeContent: true
     });
@@ -1240,19 +1217,13 @@ export class AgentOrchestrator {
     if (githubResults.length > 0) {
       enrichmentContext.validGithubUrls = githubResults.map(r => r.url).join(', ');
     }
-    
-    const enrichmentResults = typeof this.openai.extractStructuredDataWithCorroboration === 'function'
-      ? await this.openai.extractStructuredDataWithCorroboration(
-          combinedContent,
-          fields,
-          enrichmentContext,
-          onAgentProgress
-        )
-      : await this.openai.extractStructuredDataOriginal(
-          combinedContent,
-          fields,
-          enrichmentContext
-        );
+
+    const enrichmentResults = await this.llm.extractStructuredDataWithCorroboration(
+      combinedContent,
+      fields,
+      enrichmentContext,
+      onAgentProgress
+    );
     
     
     // Add source URLs to results and validate GitHub sources
@@ -1360,7 +1331,7 @@ export class AgentOrchestrator {
         if (onAgentProgress) {
           onAgentProgress(`Search ${i + 1}/${searchQueries.length}: ${query.substring(0, 60)}...`, 'info');
         }
-        const searchResults = await this.firecrawl.search(query, { limit: 3, scrapeContent: true });
+        const searchResults = await this.scraper.search(query, { limit: 3, scrapeContent: true });
         
         if (searchResults && searchResults.length > 0) {
           console.log(`[AGENT-GENERAL] Found ${searchResults.length} results`);
@@ -1394,7 +1365,7 @@ export class AgentOrchestrator {
           if (onAgentProgress) {
             onAgentProgress(`Checking ${url.split('/').pop()} page...`, 'info');
           }
-          const scraped = await this.firecrawl.scrapeUrl(url);
+          const scraped = await this.scraper.scrapeUrl(url);
           if (scraped.data && scraped.data.markdown) {
             allSearchResults.push({
               url,
@@ -1447,19 +1418,13 @@ export class AgentOrchestrator {
       - Extract exactly what is asked for
       - Only include information that is explicitly stated
       - Do not make assumptions or inferences`;
-    
-    const enrichmentResults = typeof this.openai.extractStructuredDataWithCorroboration === 'function'
-      ? await this.openai.extractStructuredDataWithCorroboration(
-          combinedContent,
-          fields,
-          enrichmentContext,
-          onAgentProgress
-        )
-      : await this.openai.extractStructuredDataOriginal(
-          combinedContent,
-          fields,
-          enrichmentContext
-        );
+
+    const enrichmentResults = await this.llm.extractStructuredDataWithCorroboration(
+      combinedContent,
+      fields,
+      enrichmentContext,
+      onAgentProgress
+    );
     
     const foundFields = Object.keys(enrichmentResults).filter(k => enrichmentResults[k]?.value);
     if (onAgentProgress && foundFields.length > 0) {
@@ -2032,7 +1997,7 @@ IMPORTANT: Only extract information that is clearly about the company associated
         }
       });
       
-      const enrichmentResults = await this.openai.extractStructuredDataOriginal(
+      const enrichmentResults = await this.llm.extractStructuredDataOriginal(
         fullContent,
         fields,
         stringContext
