@@ -52,4 +52,38 @@ export const MODELS_CONFIG: LLMModelInfo[] = [
     pricing: { inputPer1M: 0.12, outputPer1M: 0.3 },
     contextWindow: 128_000,
   },
+  // NOTE: OpenRouter slugs + pricing drift. Verify each against
+  // https://openrouter.ai/models before relying on the displayed cost.
+  {
+    id: 'openrouter:deepseek/deepseek-chat',
+    providerId: 'openrouter',
+    displayName: 'DeepSeek V3 (via OpenRouter)',
+    description: 'Strong general-purpose model at very low cost.',
+    pricing: { inputPer1M: 0.27, outputPer1M: 1.1 },
+    contextWindow: 64_000,
+  },
+  {
+    id: 'openrouter:qwen/qwen-2.5-72b-instruct',
+    providerId: 'openrouter',
+    displayName: 'Qwen 2.5 72B (via OpenRouter)',
+    description: 'Open-weight Qwen. Good quality, low cost.',
+    pricing: { inputPer1M: 0.35, outputPer1M: 0.4 },
+    contextWindow: 128_000,
+  },
+  {
+    id: 'openrouter:mistralai/mistral-large',
+    providerId: 'openrouter',
+    displayName: 'Mistral Large (via OpenRouter)',
+    description: 'Mistral flagship. Solid reasoning, mid-tier cost.',
+    pricing: { inputPer1M: 2, outputPer1M: 6 },
+    contextWindow: 128_000,
+  },
+  {
+    id: 'openrouter:anthropic/claude-3.5-haiku',
+    providerId: 'openrouter',
+    displayName: 'Claude 3.5 Haiku (via OpenRouter)',
+    description: 'Fast, cheaper Claude for quick extraction.',
+    pricing: { inputPer1M: 0.8, outputPer1M: 4 },
+    contextWindow: 200_000,
+  },
 ];

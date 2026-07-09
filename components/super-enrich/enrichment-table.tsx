@@ -14,6 +14,10 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { ChatPanel, ChatMessage } from "./chat-panel";
 import {
+  PROVIDER_KEYS,
+  providerIdsForSelection,
+} from "@/lib/providers/client-keys";
+import {
   Download,
   X,
   Copy,
@@ -36,6 +40,7 @@ interface EnrichmentTableProps {
   emailColumn?: string;
   scraperId?: string;
   llmModelId?: string;
+  chatEnabled?: boolean;
 }
 
 export function EnrichmentTable({
@@ -44,6 +49,7 @@ export function EnrichmentTable({
   emailColumn,
   scraperId,
   llmModelId,
+  chatEnabled = true,
 }: EnrichmentTableProps) {
   const [results, setResults] = useState<Map<number, RowEnrichmentResult>>(
     new Map(),
@@ -119,21 +125,20 @@ export function EnrichmentTable({
     setStatus("processing");
 
     try {
-      // Get API keys from localStorage if not in environment
-      const firecrawlApiKey = localStorage.getItem("firecrawl_api_key");
-      const openaiApiKey = localStorage.getItem("openai_api_key");
-
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
         ...(useAgents && { "x-use-agents": "true" }),
       };
 
-      // Add API keys to headers if available
-      if (firecrawlApiKey) {
-        headers["X-Firecrawl-API-Key"] = firecrawlApiKey;
-      }
-      if (openaiApiKey) {
-        headers["X-OpenAI-API-Key"] = openaiApiKey;
+      // Attach the browser-stored key for each selected provider (scraper + LLM).
+      for (const id of providerIdsForSelection(
+        scraperId ?? "firecrawl",
+        llmModelId ?? "openai:gpt-4o",
+      )) {
+        const info = PROVIDER_KEYS[id];
+        if (!info) continue;
+        const key = localStorage.getItem(info.localStorageKey);
+        if (key) headers[info.header] = key;
       }
 
       const response = await fetch("/api/enrich", {
@@ -295,7 +300,7 @@ export function EnrichmentTable({
       console.error("Failed to start enrichment:", error);
       setStatus("completed");
     }
-  }, [fields, rows, emailColumn, useAgents]);
+  }, [fields, rows, emailColumn, useAgents, scraperId, llmModelId]);
 
   useEffect(() => {
     if (status === "idle") {
@@ -1457,16 +1462,20 @@ export function EnrichmentTable({
         </DialogContent>
       </Dialog>
 
-      {/* Chat Panel - positioned absolutely on the right */}
-      <ChatPanel
-        messages={agentMessages}
-        onSendMessage={handleChatMessage}
-        onStopQuery={handleStopQuery}
-        isProcessing={isChatProcessing}
-        totalRows={rows.length}
-        results={results}
-        onExpandedChange={setIsChatExpanded}
-      />
+      {/* Chat Panel - positioned absolutely on the right.
+          Hidden unless Firecrawl + OpenAI keys are available, since
+          /api/chat is hardcoded to those two providers. */}
+      {chatEnabled && (
+        <ChatPanel
+          messages={agentMessages}
+          onSendMessage={handleChatMessage}
+          onStopQuery={handleStopQuery}
+          isProcessing={isChatProcessing}
+          totalRows={rows.length}
+          results={results}
+          onExpandedChange={setIsChatExpanded}
+        />
+      )}
     </div>
   );
 }

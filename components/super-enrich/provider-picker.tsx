@@ -8,7 +8,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 
 interface ScraperMeta {
   id: string;
@@ -52,7 +51,11 @@ export function ProviderPicker({
   }, []);
 
   if (isLoading) {
-    return <div className="text-sm text-muted-foreground">Loading providers…</div>;
+    return (
+      <div className="text-body-small text-black-alpha-56">
+        Loading providers…
+      </div>
+    );
   }
 
   const selectedScraper = scrapers.find((s) => s.id === scraperId);
@@ -62,40 +65,48 @@ export function ProviderPicker({
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {/* Scraper picker */}
       <div className="space-y-1.5">
-        <Label htmlFor="scraper-select" className="text-sm font-medium">
+        <label htmlFor="scraper-select" className="text-label-medium">
           Scraper
-        </Label>
+        </label>
         <Select value={scraperId} onValueChange={onScraperChange}>
-          <SelectTrigger id="scraper-select" className="w-full">
+          <SelectTrigger
+            id="scraper-select"
+            className="h-32 w-full border-gray-200 bg-white focus:border-gray-400 text-body-medium"
+          >
             <SelectValue placeholder="Choose scraper" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-white border-gray-200">
             {scrapers.map((s) => (
-              <SelectItem key={s.id} value={s.id}>
+              <SelectItem key={s.id} value={s.id} className="text-body-medium">
                 {s.displayName}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         {selectedScraper && (
-          <p className="text-xs text-muted-foreground">{selectedScraper.description}</p>
+          <p className="text-body-small text-black-alpha-56">
+            {selectedScraper.description}
+          </p>
         )}
       </div>
 
       {/* LLM model picker */}
       <div className="space-y-1.5">
-        <Label htmlFor="llm-select" className="text-sm font-medium">
+        <label htmlFor="llm-select" className="text-label-medium">
           LLM Model
-        </Label>
+        </label>
         <Select value={llmModelId} onValueChange={onLlmChange}>
-          <SelectTrigger id="llm-select" className="w-full">
+          <SelectTrigger
+            id="llm-select"
+            className="h-32 w-full border-gray-200 bg-white focus:border-gray-400 text-body-medium"
+          >
             <SelectValue placeholder="Choose model" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-white border-gray-200">
             {models.map((m) => (
-              <SelectItem key={m.id} value={m.id}>
+              <SelectItem key={m.id} value={m.id} className="text-body-medium">
                 <span>{m.displayName}</span>
-                <span className="ml-2 text-xs text-muted-foreground">
+                <span className="ml-2 text-body-small text-black-alpha-56">
                   ${m.pricing.inputPer1M}/${m.pricing.outputPer1M} per 1M
                 </span>
               </SelectItem>
@@ -103,7 +114,9 @@ export function ProviderPicker({
           </SelectContent>
         </Select>
         {selectedModel && (
-          <p className="text-xs text-muted-foreground">{selectedModel.description}</p>
+          <p className="text-body-small text-black-alpha-56">
+            {selectedModel.description}
+          </p>
         )}
       </div>
     </div>
