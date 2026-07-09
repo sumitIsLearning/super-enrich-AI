@@ -306,12 +306,6 @@ export default function HomePage() {
                     <br className="lg-max:hidden" />
                     crawled from all over the internet.
                   </p>
-                  <Link
-                    className="bg-black-alpha-4 hover:bg-black-alpha-6 rounded-6 px-8 lg:px-6 text-label-large h-30 lg:h-24 block mt-8 mx-auto w-max gap-4 transition-all"
-                    href="https://firecrawl.dev"
-                  >
-                    Powered by Firecrawl
-                  </Link>
                 </motion.div>
               ) : (
                 <motion.div

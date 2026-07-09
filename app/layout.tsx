@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: "Super Enrich",
   description: "Provider-agnostic, AI-powered data enrichment",
   icons: {
-    icon: "/favicon.png",
+    icon: "/favicon.svg",
   },
 };
 
