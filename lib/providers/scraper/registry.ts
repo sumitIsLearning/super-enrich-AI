@@ -1,6 +1,7 @@
 import { FirecrawlAdapter } from './adapters/firecrawl';
 import { TavilyAdapter } from './adapters/tavily';
 import { SerperAdapter } from './adapters/serper';
+import { TinyFishAdapter } from './adapters/tinyfish';
 import type { ScraperProvider, ScraperMeta } from './types';
 
 const SCRAPER_META: ScraperMeta[] = [
@@ -25,6 +26,13 @@ const SCRAPER_META: ScraperMeta[] = [
     category: 'scraper',
     docsUrl: 'https://serper.dev',
   },
+  {
+    id: 'tinyfish',
+    displayName: 'TinyFish',
+    description: 'Search + real-browser fetch, built for agents. Handles JS-rendered pages. Free tier available.',
+    category: 'scraper',
+    docsUrl: 'https://docs.tinyfish.ai/',
+  },
 ];
 
 export function getScraper(id: string, apiKey: string): ScraperProvider {
@@ -32,6 +40,7 @@ export function getScraper(id: string, apiKey: string): ScraperProvider {
     case 'firecrawl': return new FirecrawlAdapter(apiKey);
     case 'tavily':   return new TavilyAdapter(apiKey);
     case 'serper':   return new SerperAdapter(apiKey);
+    case 'tinyfish': return new TinyFishAdapter(apiKey);
     default: throw new Error(`Unknown scraper id: ${id}`);
   }
 }

@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
       firecrawl: process.env.FIRECRAWL_API_KEY || request.headers.get('X-Firecrawl-API-Key') || '',
       tavily:    process.env.TAVILY_API_KEY    || request.headers.get('X-Tavily-API-Key')    || '',
       serper:    process.env.SERPER_API_KEY    || request.headers.get('X-Serper-API-Key')    || '',
+      tinyfish:  process.env.TINYFISH_API_KEY  || request.headers.get('X-TinyFish-API-Key')  || '',
     };
     const llmKeyMap: Record<string, string> = {
       openai:     process.env.OPENAI_API_KEY     || request.headers.get('X-OpenAI-API-Key')     || '',

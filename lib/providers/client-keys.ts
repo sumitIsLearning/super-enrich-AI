@@ -39,6 +39,14 @@ export const PROVIDER_KEYS: Record<string, ProviderKeyDescriptor> = {
     docsUrl: "https://serper.dev",
     placeholder: "Your Serper API key",
   },
+  tinyfish: {
+    label: "TinyFish",
+    envStatusKey: "TINYFISH_API_KEY",
+    localStorageKey: "tinyfish_api_key",
+    header: "X-TinyFish-API-Key",
+    docsUrl: "https://docs.tinyfish.ai/",
+    placeholder: "Your TinyFish API key",
+  },
   openai: {
     label: "OpenAI",
     envStatusKey: "OPENAI_API_KEY",
