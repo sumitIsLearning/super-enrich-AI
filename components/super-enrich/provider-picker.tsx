@@ -22,11 +22,17 @@ interface LLMModelInfo {
   pricing: { inputPer1M: number; outputPer1M: number };
 }
 
+type KeyState = 'server' | 'local' | 'none';
+
 interface ProviderPickerProps {
   scraperId: string;
   llmModelId: string;
   onScraperChange: (id: string) => void;
   onLlmChange: (id: string) => void;
+  // Per-provider key status, keyed by provider id (firecrawl, openai, …).
+  keyStatus?: Record<string, KeyState>;
+  // Open the key editor for a provider (used by the "Change" / "Add" link).
+  onManageKey?: (providerId: string) => void;
 }
 
 export function ProviderPicker({
@@ -34,6 +40,8 @@ export function ProviderPicker({
   llmModelId,
   onScraperChange,
   onLlmChange,
+  keyStatus,
+  onManageKey,
 }: ProviderPickerProps) {
   const [scrapers, setScrapers] = useState<ScraperMeta[]>([]);
   const [models, setModels] = useState<LLMModelInfo[]>([]);
@@ -60,6 +68,27 @@ export function ProviderPicker({
 
   const selectedScraper = scrapers.find((s) => s.id === scraperId);
   const selectedModel = models.find((m) => m.id === llmModelId);
+
+  // Inline key status for a selected provider: server-managed (read-only),
+  // stored in this browser (editable), or missing (prompts to add).
+  const renderKeyStatus = (providerId: string) => {
+    const status = keyStatus?.[providerId];
+    if (!status) return null;
+    if (status === 'server') {
+      return (
+        <p className="text-body-small text-black-alpha-56">Key set (server)</p>
+      );
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => onManageKey?.(providerId)}
+        className="w-fit text-body-small text-black-alpha-64 underline underline-offset-2 hover:text-black-alpha-88"
+      >
+        {status === 'local' ? 'Key set · Change' : 'Key needed · Add'}
+      </button>
+    );
+  };
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -88,6 +117,7 @@ export function ProviderPicker({
             {selectedScraper.description}
           </p>
         )}
+        {renderKeyStatus(scraperId)}
       </div>
 
       {/* LLM model picker */}
@@ -118,6 +148,7 @@ export function ProviderPicker({
             {selectedModel.description}
           </p>
         )}
+        {renderKeyStatus(llmModelId.split(':')[0])}
       </div>
     </div>
   );

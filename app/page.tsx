@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "@/lib/auth/client";
@@ -77,12 +77,49 @@ export default function HomePage() {
     fields: EnrichmentField[];
   } | null>(null);
   const [chatEnabled, setChatEnabled] = useState(false);
+  const [envStatus, setEnvStatus] = useState<Record<string, boolean>>({});
+  // Bumped whenever a key is saved, so the picker's inline status re-computes.
+  const [keysVersion, setKeysVersion] = useState(0);
 
-  // Provider keys are now checked at Start time (per selected provider),
-  // not on mount. Nothing to preload here.
+  // Load which provider keys exist server-side, so the picker can show
+  // per-provider key status inline.
   useEffect(() => {
-    setIsCheckingEnv(false);
+    (async () => {
+      try {
+        const res = await fetch("/api/check-env");
+        const data = await res.json();
+        setEnvStatus(data.environmentStatus ?? {});
+      } catch (error) {
+        console.error("Error checking environment:", error);
+      } finally {
+        setIsCheckingEnv(false);
+      }
+    })();
   }, []);
+
+  // Per-provider key status for the picker: server env key, browser-stored
+  // key, or none. Recomputed when env loads or a key is saved.
+  const keyStatus = useMemo(() => {
+    void keysVersion; // recompute trigger: localStorage reads below aren't reactive
+    const out: Record<string, "server" | "local" | "none"> = {};
+    for (const id of Object.keys(PROVIDER_KEYS)) {
+      const info = PROVIDER_KEYS[id];
+      if (envStatus[info.envStatusKey]) out[id] = "server";
+      else if (typeof window !== "undefined" && localStorage.getItem(info.localStorageKey))
+        out[id] = "local";
+      else out[id] = "none";
+    }
+    return out;
+  }, [envStatus, keysVersion]);
+
+  // Open the key modal for a single provider in edit mode (no pending
+  // enrichment), so submitting just saves the key.
+  const openKeyEditor = (id: string) => {
+    setPendingEnrichment(null);
+    setMissingProviders([id]);
+    setKeyInputs((prev) => ({ ...prev, [id]: "" }));
+    setShowApiKeyModal(true);
+  };
 
   const handleCSVUpload = (rows: CSVRow[], columns: string[]) => {
     // Provider is not chosen yet at upload time, so no key gate here.
@@ -147,6 +184,7 @@ export default function HomePage() {
 
     toast.success("API keys saved successfully!");
     setShowApiKeyModal(false);
+    setKeysVersion((v) => v + 1);
 
     // Resume the enrichment the user was starting.
     if (pendingEnrichment) {
@@ -278,6 +316,8 @@ export default function HomePage() {
                               llmModelId={llmModelId}
                               onScraperChange={setScraperId}
                               onLlmChange={setLlmModelId}
+                              keyStatus={keyStatus}
+                              onManageKey={openKeyEditor}
                             />
                             <UnifiedEnrichmentView
                               rows={csvData.rows}
@@ -364,10 +404,13 @@ export default function HomePage() {
           style={{ backgroundColor: "var(--accent-white)" }}
         >
           <DialogHeader>
-            <DialogTitle>API Keys Required</DialogTitle>
+            <DialogTitle>
+              {pendingEnrichment ? "API Keys Required" : "Update API Key"}
+            </DialogTitle>
             <DialogDescription>
-              Enter an API key for each selected provider to enrich your CSV
-              data.
+              {pendingEnrichment
+                ? "Enter an API key for each selected provider to enrich your CSV data."
+                : "Enter a new key to replace the one stored in this browser."}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-4">
