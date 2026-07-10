@@ -635,7 +635,10 @@ export class AgentOrchestrator {
     const domainQuery = ctxEmailContext?.companyDomain 
       ? `site:${ctxEmailContext.companyDomain} OR ` 
       : '';
-    const searchQuery = `${domainQuery}"${String(companyName)}" headquarters industry "founded in" "year founded" location "based in" about`;
+    // Keep only the company name quoted. Quoting the helper phrases forces
+    // exact-match ANDs that collapse the result set to zero (verified against
+    // Serper), so leave them as plain keywords.
+    const searchQuery = `${domainQuery}"${String(companyName)}" headquarters industry founded year location based about`;
     console.log(`[AGENT-PROFILE] Search query: ${searchQuery}`);
     
     if (onAgentProgress) {
@@ -790,7 +793,7 @@ export class AgentOrchestrator {
       ? `site:${ctxEmailContext.companyDomain} OR ` 
       : '';
     // Use multiple search strategies for better coverage
-    const searchQuery = `${domainQuery}"${String(companyName)}" employees "team size" revenue "annual revenue" ARR MRR ${year} ${year-1}`;
+    const searchQuery = `${domainQuery}"${String(companyName)}" employees team size revenue annual ARR MRR ${year} ${year-1}`;
     console.log(`[AGENT-METRICS] Search query: ${searchQuery}`);
     
     if (onAgentProgress) {
@@ -938,7 +941,7 @@ export class AgentOrchestrator {
     const domainQuery = ctxEmailContext?.companyDomain 
       ? `site:${ctxEmailContext.companyDomain} OR ` 
       : '';
-    const searchQuery = `${domainQuery}"${String(companyName)}" funding "raised" "series" investment "total funding" valuation investors`;
+    const searchQuery = `${domainQuery}"${String(companyName)}" funding raised series investment total valuation investors`;
     console.log(`[AGENT-FUNDING] Search query: ${searchQuery}`);
     
     if (onAgentProgress) {
