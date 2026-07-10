@@ -631,14 +631,15 @@ export class AgentOrchestrator {
     }
     
     // Search for profile information
-    // Prioritize company's own domain if available
-    const domainQuery = ctxEmailContext?.companyDomain 
-      ? `site:${ctxEmailContext.companyDomain} OR ` 
-      : '';
-    // Keep only the company name quoted. Quoting the helper phrases forces
-    // exact-match ANDs that collapse the result set to zero (verified against
-    // Serper), so leave them as plain keywords.
-    const searchQuery = `${domainQuery}"${String(companyName)}" headquarters industry founded year location based about`;
+    // Match pages on the company's own domain OR pages elsewhere that name
+    // the company, AND require at least one profile-relevant keyword. The
+    // parens matter: without them "site:X OR "name" kw1 kw2" doesn't group
+    // the way it reads -- OR binds loosely and the site: filter ends up
+    // doing nothing (verified against Serper).
+    const sourceClause = ctxEmailContext?.companyDomain
+      ? `(site:${ctxEmailContext.companyDomain} OR "${String(companyName)}")`
+      : `"${String(companyName)}"`;
+    const searchQuery = `${sourceClause} (headquarters OR industry OR founded OR location OR about)`;
     console.log(`[AGENT-PROFILE] Search query: ${searchQuery}`);
     
     if (onAgentProgress) {
@@ -786,14 +787,14 @@ export class AgentOrchestrator {
       return {};
     }
     
-    // Search for metrics
-    const year = new Date().getFullYear();
-    // Prioritize company's own domain if available
-    const domainQuery = ctxEmailContext?.companyDomain 
-      ? `site:${ctxEmailContext.companyDomain} OR ` 
-      : '';
-    // Use multiple search strategies for better coverage
-    const searchQuery = `${domainQuery}"${String(companyName)}" employees team size revenue annual ARR MRR ${year} ${year-1}`;
+    // Search for metrics. Same grouping fix as the Profile phase query, plus
+    // dropped the bare year tokens -- pages that actually carry this data
+    // rarely say the exact current year verbatim, so requiring it as a
+    // keyword filtered out otherwise-good sources.
+    const sourceClause = ctxEmailContext?.companyDomain
+      ? `(site:${ctxEmailContext.companyDomain} OR "${String(companyName)}")`
+      : `"${String(companyName)}"`;
+    const searchQuery = `${sourceClause} (employees OR headcount OR revenue OR ARR OR MRR OR "annual recurring revenue" OR "monthly recurring revenue")`;
     console.log(`[AGENT-METRICS] Search query: ${searchQuery}`);
     
     if (onAgentProgress) {
@@ -936,12 +937,11 @@ export class AgentOrchestrator {
       return {};
     }
     
-    // Search for funding information
-    // Prioritize company's own domain if available
-    const domainQuery = ctxEmailContext?.companyDomain 
-      ? `site:${ctxEmailContext.companyDomain} OR ` 
-      : '';
-    const searchQuery = `${domainQuery}"${String(companyName)}" funding raised series investment total valuation investors`;
+    // Search for funding information. Same grouping fix as Profile/Metrics.
+    const sourceClause = ctxEmailContext?.companyDomain
+      ? `(site:${ctxEmailContext.companyDomain} OR "${String(companyName)}")`
+      : `"${String(companyName)}"`;
+    const searchQuery = `${sourceClause} (funding OR investors OR valuation OR raised OR "series a" OR "series b" OR "series c")`;
     console.log(`[AGENT-FUNDING] Search query: ${searchQuery}`);
     
     if (onAgentProgress) {
@@ -1091,9 +1091,10 @@ export class AgentOrchestrator {
       return {};
     }
     
-    // Search for GitHub repositories
+    // Search for GitHub repositories. Parens group the OR with the site:
+    // filter -- same fix as Profile/Metrics/Funding.
     const githubQuery = companyName && typeof companyName === 'string'
-      ? `site:github.com "${companyName}" OR "${companyName.toLowerCase().replace(/\s+/g, '-')}"`
+      ? `site:github.com ("${companyName}" OR "${companyName.toLowerCase().replace(/\s+/g, '-')}")`
       : `site:github.com "${companyDomain?.replace('.com', '').replace('.io', '').replace('.ai', '')}"`;
     
     console.log(`[AGENT-TECH-STACK] GitHub search query: ${githubQuery}`);
@@ -1151,8 +1152,10 @@ export class AgentOrchestrator {
       }
     }
     
-    // Search for tech stack mentions
-    const techSearchQuery = `"${companyName || companyDomain}" "tech stack" "built with" "powered by" technologies framework`;
+    // Search for tech stack mentions. Was AND-quoting 3 exact phrases, same
+    // over-constraining bug fixed in Profile/Metrics/Funding earlier -- now
+    // OR'd as a keyword group instead.
+    const techSearchQuery = `"${companyName || companyDomain}" ("tech stack" OR "built with" OR "powered by" OR technologies OR framework)`;
     console.log(`[AGENT-TECH-STACK] Tech stack search query: ${techSearchQuery}`);
     
     if (onAgentProgress) {
@@ -1460,36 +1463,36 @@ export class AgentOrchestrator {
   
   private buildGeneralSearchQueries(fields: EnrichmentField[], companyName?: string, companyDomain?: string): string[] {
     const queries: string[] = [];
-    
+
+    // Same grouping fix as Profile/Metrics/Funding: match on-domain OR
+    // name-mention, then AND the field-relevant keywords. Also cuts this
+    // from 2 queries per field group down to 1 (was issuing a separate
+    // site: query and name query for the same terms).
+    const sourceClause = companyDomain && companyName
+      ? `(site:${companyDomain} OR "${String(companyName)}")`
+      : companyName
+        ? `"${String(companyName)}"`
+        : companyDomain
+          ? `site:${companyDomain}`
+          : null;
+
+    if (!sourceClause) return queries;
+
     // Group fields by type
     const executiveFields = fields.filter(f => this.isExecutiveField(f));
     const otherFields = fields.filter(f => !this.isExecutiveField(f));
-    
-    // Build queries for executive fields
+
+    // Build one query for executive fields
     if (executiveFields.length > 0) {
       const titles = executiveFields.map(f => this.extractTitle(f)).filter(Boolean);
-      
-      if (companyName) {
-        queries.push(`"${String(companyName)}" leadership team executives ${titles.join(' ')}`);
-        queries.push(`"${String(companyName)}" CEO CTO CFO founders management`);
-      }
-      
-      if (companyDomain) {
-        queries.push(`site:${companyDomain} team leadership about executives`);
-      }
+      const titleGroup = titles.length > 0 ? titles.join(' OR ') : 'CEO OR CTO OR CFO OR founder';
+      queries.push(`${sourceClause} (leadership OR executives OR management OR ${titleGroup})`);
     }
-    
-    // Build queries for other fields
+
+    // One query per remaining field
     for (const field of otherFields) {
       const fieldTerms = this.getSearchTermsForField(field);
-      
-      if (companyName) {
-        queries.push(`"${String(companyName)}" ${fieldTerms}`);
-      }
-      
-      if (companyDomain) {
-        queries.push(`site:${companyDomain} ${fieldTerms}`);
-      }
+      queries.push(`${sourceClause} ${fieldTerms}`);
     }
     
     return queries;
