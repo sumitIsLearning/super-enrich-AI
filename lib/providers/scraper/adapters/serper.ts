@@ -33,11 +33,25 @@ export class SerperAdapter implements ScraperProvider {
         organic?: Array<{ link: string; title?: string; snippet?: string }>;
       };
 
-      return (data.organic ?? []).map((item) => ({
-        url: item.link,
-        title: item.title ?? '',
-        description: item.snippet ?? '',
-      }));
+      const { fetchPageContent } = await import('../fetch-content');
+      const results = await Promise.all(
+        (data.organic ?? []).map(async (item) => {
+          const content = await fetchPageContent(item.link);
+          return {
+            url: item.link,
+            title: item.title ?? '',
+            description: item.snippet ?? '',
+            markdown: content?.markdown,
+          };
+        })
+      );
+
+      // Serper only returns snippet metadata, never page content, so every
+      // result needs its own fetch above. Drop anything that came back
+      // empty (fetch failed / blocked) or too thin to be real content
+      // (e.g. a JS-only page shell) -- same threshold the Discovery phase
+      // already uses for the same purpose.
+      return results.filter((r) => r.markdown && r.markdown.length >= 100);
     } catch (error) {
       console.error('Serper search error:', error);
       return [];
