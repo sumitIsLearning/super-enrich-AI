@@ -126,5 +126,8 @@ After I approve an increment, add an entry to ARCHITECTURE.md in this repo, four
 ## 8. No AI-sounding text
 Any human-facing text you write — commit messages, PR descriptions, code comments, docs, README updates — apply the humanizer skill before showing it to me. Concretely: no em dashes, no inflated-significance phrasing ("plays a crucial role," "stands as a testament to"), no filler padding a sentence that already made its point, no restating the same point two different ways in a row. Say the thing once, plainly, stop.
 
+## 9. Keep FIXES_FEATURES.md updated
+After any fix or feature lands (commit or session wrap-up), add an entry to `FIXES_FEATURES.md` in the same order it already uses: newest first, grouped by session/date, then by theme within each group. Match the existing entry format (bold title + commit hash, one short paragraph on what broke/was built and why).
+
 ## Why these rules exist
 Speed from AI-assisted coding only matters if I can still explain what got built later — in review, in an interview, in a bug report six months out. These rules trade some speed for retained understanding, on purpose. Don't optimize that trade away because a task feels simple. Simple tasks are exactly where the habit erodes first.
