@@ -15,6 +15,22 @@ Connects to: `lib/providers/scraper/adapters/serper.ts:search()`; called generic
 Breaks if removed: Serper-backed enrichments silently degrade to zero usable content again, same failure mode this session started with.
 
 
+Feature: TinyFish scraper adapter (4th ScraperProvider) — steps 1-2, tests pending
+Why this shape: TinyFish's Fetch API renders via a real headless browser (JS/SPA-safe, unlike our regex-based `fetchPageContent`), and its Search API returns structured JSON like Serper. Implemented as a normal `ScraperProvider` — `search()` calls Search then batches content via one Fetch call (10-URL cap), `scrapeUrl()` makes 2 parallel Fetch calls (markdown + html) since the API returns one format per call.
+Connects to: `lib/providers/scraper/adapters/tinyfish.ts`; wired into `registry.ts`, `client-keys.ts`, `check-env`, `enrich/route.ts`, `.env.example` — same pattern as the other 3 adapters, no picker/UI changes needed (reads the registry generically).
+Breaks if removed: TinyFish disappears from the scraper picker; `/api/enrich` 400s on `scraperId: "tinyfish"`.
+
+
+Feature: Configurable rate-limit tier config (`lib/config/rate-limit.ts`)
+Why this shape: existing limiter had one hardcoded rule (50/day) reused everywhere; needed per-endpoint-type tiers (auth/public/authenticated) with every threshold env-configurable, not hardcoded.
+Connects to: consumed by `lib/rate-limit.ts`'s tier param and backoff functions; auth wiring (`lib/auth/index.ts`) still pending.
+Breaks if removed: tier functions lose their default numbers; every caller needs inline thresholds again.
+
+Feature: Tier-based rate limiter + per-account backoff (`lib/rate-limit.ts`)
+Why this shape: single hardcoded 50/day/IP limiter couldn't express "stricter on auth, looser on authenticated actions." Added a `tier` param to `getRateLimiter`/`isRateLimited`, plus `recordAuthFailure`/`checkAuthBackoff`/`clearAuthBackoff` for exponential backoff on auth instead of a hard lockout.
+Connects to: `RATE_LIMIT_CONFIG`; `scrape/route.ts`'s existing 2-arg call no longer compiles until it's updated to pass a tier (deliberate — see handoff.md); backoff functions have no caller yet, pending `lib/auth/index.ts` wiring.
+Breaks if removed: no tiered rate limiting exists; `scrape/route.ts` needs reverting too since it depends on the new signature.
+
 [Next entry goes here]
 
 Feature:

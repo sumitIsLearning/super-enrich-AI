@@ -2,7 +2,21 @@
 
 Chronological record of what's been built and fixed since the fork from Fire Enrich (2026-06-29). Grouped by theme, newest first. Commit hashes point to `git log` for full detail.
 
-## Session: 2026-07-10 — OpenRouter/Google fix, search fix, key-status UI
+## Session: 2026-07-10 (cont.) — Configurable rate limiting, in progress
+
+**In progress — tiered rate limiting + auth backoff, not yet committed**
+Old limiter was one hardcoded rule (50 requests/day/IP) reused everywhere, with no coverage on auth or on `enrich`/`chat`/`generate-fields`. Built `lib/config/rate-limit.ts`: three env-configurable tiers — AUTH (strict, per-IP + per-account exponential backoff instead of a hard lockout), PUBLIC (moderate, unused for now since no unauthenticated route exists), AUTHENTICATED (loose, for logged-in user actions). `lib/rate-limit.ts` now takes a tier param instead of hardcoded numbers, plus `recordAuthFailure`/`checkAuthBackoff`/`clearAuthBackoff` for the backoff leg. Auth wiring (`lib/auth/index.ts`) and the route updates (`scrape`, `enrich`, `chat`, `generate-fields`) are still pending — see `handoff.md` for exact next steps and the currently-broken build state.
+
+## Session: 2026-07-10 — Search query rewrite, Serper content-fetch fix, OpenRouter/Google fix, key-status UI
+
+**Docs — FIXES_FEATURES.md history + keep-updated rule** (`ccad615`)
+Added this file and an AGENTS.md rule to keep it updated after every fix/feature, same format, newest-first.
+
+**Fix — Serper never fetched page content** (`493d0f2`)
+Serper's own API only ever returned Google's snippet metadata (url, title, description) — never the actual page. Every orchestrator phase fed that straight into the LLM extraction prompt, so extraction ran against empty content blocks regardless of query quality. Wired the existing SSRF-hardened `fetchPageContent()` into `search()`, fetched per result in parallel, dropped anything under 100 chars (fetch failure or a JS-only page shell).
+
+**Fix — ungrouped boolean search queries across 6 orchestrator phases** (`6537355`)
+`site:X OR "name" kw1 kw2` has no parens, so `OR` doesn't group the way it reads — the `site:` filter often did nothing. Wrapped the domain/name choice in parens and OR'd the keyword set in Profile, Metrics, Funding, and Tech Stack's GitHub query. Also fixed an over-quoting bug in Tech Stack's mentions query (same class as the one below) and merged General's two queries per field group into one, halving its Serper calls.
 
 **Fix — OpenRouter/Google spec-version mismatch** (`ca4b6c7`)
 Every OpenRouter and Google extraction call threw `AI_NoObjectGeneratedError`. Root cause: `ai@4` reads tool-call results via LanguageModel spec v1; `@ai-sdk/google` and `@openrouter/ai-sdk-provider` were on versions speaking newer specs that never populate the field `ai@4` reads. Fixed by bumping `ai` 4→7 and all three provider packages to versions that compile to the same spec (v4), removing the type casts that had been papering over the mismatch.
@@ -60,7 +74,8 @@ Scraper + LLM dropdown component, wired into the setup step and threaded through
 Carried from `handoff.md` — see that file for full detail and file:line references:
 - Per-phase error isolation in `orchestrator.ts` — one phase throwing wipes all other phases' results for that row.
 - No empty-content guard around `generateObject` calls in `extraction.ts`.
-- Open signup rides the operator's env keys; no allowlist on `llmModelId`/`scraperId`; no server-side row cap; rate limiting only covers `/api/scrape`.
+- Open signup rides the operator's env keys; no allowlist on `llmModelId`/`scraperId`; no server-side row cap.
+- Rate limiting only covers `/api/scrape` — tiered rate limiting (auth/public/authenticated) is in progress, see FIXES_FEATURES.md's "Configurable rate limiting" entry and `handoff.md`.
 - No ownership check on job cancel; no Zod validation on enrich/generate-fields request bodies; BYOK keys sit in plaintext `localStorage` (deliberate, tracked as follow-up hardening).
 - Two live `cn()` helpers (`lib/utils.ts` vs `utils/cn.ts`) — not consolidated.
 - Two lockfiles committed (`pnpm-lock.yaml` + `package-lock.json`) — one should be dropped before going public.
