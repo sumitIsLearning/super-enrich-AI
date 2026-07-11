@@ -16,9 +16,6 @@
     "@ai-sdk/google": "^4.0.11",
     "@ai-sdk/openai": "^4.0.11",
     "@hookform/resolvers": "^5.0.1",
-    "@langchain/core": "^0.3.57",
-    "@langchain/langgraph": "^0.2.74",
-    "@langchain/openai": "^0.5.11",
     "@mendable/firecrawl-js": "^1.25.1",
     "@openrouter/ai-sdk-provider": "^3.0.0",
     "@radix-ui/react-accordion": "^1.2.10",
@@ -67,7 +64,7 @@
     "lucide-react": "^0.511.0",
     "motion": "^12.23.16",
     "nanoid": "^5.1.5",
-    "next": "15.3.2",
+    "next": "15.5.20",
     "next-themes": "^0.4.6",
     "openai": "^4.73.0",
     "papaparse": "^5.4.1",
@@ -103,12 +100,18 @@
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
-    "eslint-config-next": "15.3.2",
+    "eslint-config-next": "15.5.20",
     "postcss": "^8.4.32",
     "postcss-import": "^16.1.1",
     "postcss-nesting": "^13.0.2",
     "tailwindcss": "^3.4.0",
     "typescript": "^5",
     "vitest": "^4.1.9"
+  },
+  "pnpm": {
+    "overrides": {
+      "axios": "^1.18.1",
+      "form-data": ">=4.0.4"
+    }
   }
 }
