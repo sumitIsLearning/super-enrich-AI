@@ -2,6 +2,20 @@
 
 Chronological record of what's been built and fixed since the fork from Fire Enrich (2026-06-29). Grouped by theme, newest first. Commit hashes point to `git log` for full detail.
 
+## Session: 2026-07-11 — Auth rate-limit wiring, dependency audit, error-handling hardening, row cap
+
+**Feature — better-auth rate limiter wired to Redis + sign-in backoff** (`46d29ac`)
+Continues the 2026-07-10 rate-limit thread: `lib/auth/index.ts` now enables better-auth's native per-IP limiter for `/sign-in/email`, `/sign-up/email`, `/forget-password`, backed by a new `redisSecondaryStorage` adapter (`lib/rate-limit.ts`) instead of the in-memory default that resets per instance. Added per-account exponential backoff on sign-in only (`hooks.before`/`after` via `createAuthMiddleware`, self-filtered since both hooks match every path internally). Route-level tier wiring for `scrape`/`enrich`/`chat`/`generate-fields` is still pending — see `handoff.md`.
+
+**Fix — dependency audit: 2 critical, 42 high, 45 moderate advisories** (`5b1cd17`)
+`pnpm audit` found 94 advisories. Removed `@langchain/core`/`@langchain/langgraph`/`@langchain/openai` (zero source imports found anywhere — dead weight pulling in a critical `form-data` CVE and a high-severity secret-extraction advisory for nothing). Bumped `next` 15.3.2 → 15.5.20 (RCE in React flight protocol, plus SSRF/cache-poisoning/DoS advisories — stayed on the 15.x line, not the v16 major). Forced `axios` → `^1.18.1` and `form-data` → `>=4.0.4` via `pnpm.overrides`, since both were pinned deep inside `firecrawl-js`/`@tavily/core`/`openai`'s own lockfiles. Down to 0 critical/17 high/17 moderate — remainder is dev/build-time-only tooling (tailwindcss v3's `sucrase` chain, eslint's `ajv`/`js-yaml`), not touched.
+
+**Fix — raw error messages leaking to clients** (`aa4b823`)
+5 spots in `enrich`/`chat`'s SSE streams echoed `error.message` (or `details: error.message`) straight into the client-facing response — provider SDK internals, unhandled exceptions, etc. would have reached the browser as-is, 3 of them with no server-side logging at all. Each now logs full detail via `console.error` and returns a generic message.
+
+**Feature — 1000-row cap per enrichment request** (`aa4b823`)
+No server-side limit existed on rows per `/api/enrich` call (flagged in a prior session's open-findings list) — a direct API call could bypass the CSV UI entirely with unlimited rows. Added `ENRICHMENT_CONFIG.MAX_ROWS_PER_REQUEST` (1000), enforced server-side (the real boundary) and client-side in the CSV uploader for fast feedback. Also added a 10MB `maxSize` sanity ceiling to the dropzone with an `onDropRejected` handler, since oversized/wrong-type files were previously rejected silently with no error shown.
+
 ## Session: 2026-07-10 (cont.) — Configurable rate limiting, in progress
 
 **In progress — tiered rate limiting + auth backoff, not yet committed**
