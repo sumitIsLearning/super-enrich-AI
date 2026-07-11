@@ -141,3 +141,37 @@ export const clearAuthBackoff = async (ip: string, accountKey: string): Promise<
   const compositeKey = `${ip}:${accountKey}`;
   await redis.del(`authfail:count:${compositeKey}`, `authfail:blocked:${compositeKey}`);
 };
+
+/**
+ * better-auth's SecondaryStorage shape (get/set/delete/increment), backed by
+ * the same Upstash Redis client and dev-bypass rule as the functions above.
+ * Passed to betterAuth({ secondaryStorage }) so its native rate limiter
+ * persists to Redis instead of an in-memory Map that resets per
+ * instance/cold start. Every method no-ops (or returns a value that reads as
+ * "not rate limited") when Redis isn't configured, so dev/test stays
+ * unblocked without a separate conditional at the call site.
+ */
+export const redisSecondaryStorage = {
+  get: async (key: string) => {
+    const redis = getBackoffRedis();
+    if (!redis) return null;
+    return redis.get(key);
+  },
+  set: async (key: string, value: string, ttl?: number): Promise<void> => {
+    const redis = getBackoffRedis();
+    if (!redis) return;
+    await redis.set(key, value, ttl ? { ex: ttl } : undefined);
+  },
+  delete: async (key: string): Promise<void> => {
+    const redis = getBackoffRedis();
+    if (!redis) return;
+    await redis.del(key);
+  },
+  increment: async (key: string, ttl: number): Promise<number> => {
+    const redis = getBackoffRedis();
+    if (!redis) return 0;
+    const count = await redis.incr(key);
+    if (count === 1) await redis.expire(key, ttl);
+    return count;
+  },
+};
