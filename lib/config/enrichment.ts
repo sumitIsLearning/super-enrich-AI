@@ -15,4 +15,11 @@ export const ENRICHMENT_CONFIG = {
    * Helps prevent rate limiting
    */
   BATCH_DELAY_MS: 1000,
+
+  /**
+   * Hard ceiling on rows per enrichment request, enforced client- and
+   * server-side. Always on, independent of SUPER_ENRICH_CONFIG's
+   * demo-tier MAX_ROWS (which is 15/Infinity and skipped in unlimited mode).
+   */
+  MAX_ROWS_PER_REQUEST: 1000,
 } as const;

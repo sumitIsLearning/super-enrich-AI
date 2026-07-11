@@ -38,6 +38,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (rows.length > ENRICHMENT_CONFIG.MAX_ROWS_PER_REQUEST) {
+      return NextResponse.json(
+        { error: `Too many rows. Maximum allowed per request: ${ENRICHMENT_CONFIG.MAX_ROWS_PER_REQUEST}` },
+        { status: 400 }
+      );
+    }
+
     if (!fields || fields.length === 0 || fields.length > 10) {
       return NextResponse.json(
         { error: 'Please provide 1-10 fields to enrich' },
@@ -97,8 +104,9 @@ export async function POST(request: NextRequest) {
       const llmExtractor = createLLMExtractor(llmModel);
       enrichmentStrategy = new AgentEnrichmentStrategy(scraperInstance, llmExtractor);
     } catch (err) {
+      console.error('Failed to initialize providers:', err);
       return NextResponse.json(
-        { error: err instanceof Error ? err.message : 'Failed to initialize providers' },
+        { error: 'Failed to initialize providers. Please check your configuration and try again.' },
         { status: 400 }
       );
     }
@@ -238,13 +246,14 @@ export async function POST(request: NextRequest) {
                 )
               );
             } catch (error) {
+              console.error(`Error enriching row ${i}:`, error);
               // Send error for this row
               const errorResult: RowEnrichmentResult = {
                 rowIndex: i,
                 originalData: row,
                 enrichments: {},
                 status: 'error',
-                error: error instanceof Error ? error.message : 'Unknown error',
+                error: 'Failed to enrich this row. Please try again later.',
               };
 
               controller.enqueue(
@@ -299,11 +308,12 @@ export async function POST(request: NextRequest) {
             )
           );
         } catch (error) {
+          console.error('Enrichment stream failed:', error);
           controller.enqueue(
             encoder.encode(
               `data: ${JSON.stringify({
                 type: 'error',
-                error: error instanceof Error ? error.message : 'Unknown error',
+                error: 'Enrichment failed. Please try again later.',
               })}\n\n`
             )
           );
@@ -324,9 +334,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Failed to start enrichment:', error);
     return NextResponse.json(
-      { 
-        error: 'Failed to start enrichment',
-        details: error instanceof Error ? error.message : 'Unknown error',
+      {
+        error: 'Failed to start enrichment. Please try again later.',
         timestamp: new Date().toISOString()
       },
       { status: 500 }

@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import Papa from "papaparse";
 import { CSVRow } from "@/lib/types";
+import { ENRICHMENT_CONFIG } from "@/lib/config/enrichment";
 import { Upload, Download, AtSign, InfinityIcon } from "lucide-react";
 import Button from "@/components/shared/button/button";
 import Link from "next/link";
@@ -54,6 +55,14 @@ export function CSVUploader({ onUpload }: CSVUploaderProps) {
             return;
           }
 
+          if (validRows.length > ENRICHMENT_CONFIG.MAX_ROWS_PER_REQUEST) {
+            setError(
+              `Too many rows. Maximum allowed per upload: ${ENRICHMENT_CONFIG.MAX_ROWS_PER_REQUEST}`,
+            );
+            setIsProcessing(false);
+            return;
+          }
+
           setIsProcessing(false);
           onUpload(validRows, headers);
         },
@@ -75,13 +84,22 @@ export function CSVUploader({ onUpload }: CSVUploaderProps) {
     [processCSV],
   );
 
+  const onDropRejected = useCallback((fileRejections: import("react-dropzone").FileRejection[]) => {
+    const reason = fileRejections[0]?.errors[0]?.code === "file-too-large"
+      ? "File is too large. Maximum allowed: 10MB"
+      : "Invalid file. Please upload a CSV file";
+    setError(reason);
+  }, []);
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    onDropRejected,
     accept: {
       "text/csv": [".csv"],
       "application/vnd.ms-excel": [".csv"],
     },
     maxFiles: 1,
+    maxSize: 10 * 1024 * 1024, // 10MB sanity ceiling, unrelated to the row-count cap below
   });
 
   return (

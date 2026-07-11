@@ -253,7 +253,7 @@ export async function POST(request: NextRequest) {
             encoder.encode(
               `data: ${JSON.stringify({
                 type: 'error',
-                message: error instanceof Error ? error.message : 'An error occurred'
+                message: 'An error occurred while processing your request. Please try again later.'
               })}\n\n`
             )
           );
