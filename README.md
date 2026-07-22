@@ -4,12 +4,6 @@ Turn a plain list of emails into a rich dataset — company profiles, funding da
 
 > **Direction:** Super Enrich is evolving toward a fully **provider-agnostic** tool — pick your scraper and your LLM, compare them on measured quality and cost, and save reusable field bundles. That work is tracked in [`docs/superpowers/specs/2026-06-29-pluggable-providers-design.md`](docs/superpowers/specs/2026-06-29-pluggable-providers-design.md). **This README documents what ships today.**
 
-## What ships today
-
-- **Scraping/search:** [Firecrawl](https://www.firecrawl.dev/)
-- **Extraction/synthesis:** OpenAI GPT models
-- **Framework:** Next.js 15 (App Router), streaming via Server-Sent Events
-
 ## How it works
 
 You upload a CSV of emails and choose which data points you want. For each row, Super Enrich extracts the company domain, then runs a sequence of specialized agents — each building on the previous one's findings — that search the web with Firecrawl and extract structured answers with an OpenAI model. Every value comes back with a confidence score and source citations, and your table fills in live.
@@ -26,19 +20,6 @@ Agents run in sequence so each phase has more context than the last:
 6. **General** — any custom field (CEO, competitors, etc.) using all prior context.
 
 Within each phase, multiple searches run in parallel. A final synthesis step resolves conflicts across sources and validates the extracted data.
-
-### Extensibility
-
-Each agent uses a [Zod](https://zod.dev/) schema for type-safe, validated output. Fields are routed to agents automatically by name/description (e.g. anything with "fund" or "invest" → Financial Intel; "tech stack" → Tech Stack; everything else → General). To add a data point, extend an agent's schema or add a custom field in the UI.
-
-## Setup
-
-### Required API keys
-
-| Service | Purpose | Get key |
-|---------|---------|---------|
-| Firecrawl | Web scraping & search | [firecrawl.dev/app/api-keys](https://www.firecrawl.dev/app/api-keys) |
-| OpenAI | Data extraction | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
 
 ### Quick start
 
